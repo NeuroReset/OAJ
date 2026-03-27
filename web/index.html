@@ -1,0 +1,365 @@
+﻿<!DOCTYPE html>
+<html class="light" lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Ordem de Ajuste - IronGrid Pro</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface": "#f8f9fb",
+                        "background": "#f8f9fb",
+                        "primary-container": "#e7151f",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-fixed-dim": "#bdc7db",
+                        "inverse-surface": "#2e3132",
+                        "surface-container-high": "#e7e8ea",
+                        "primary-fixed-dim": "#ffb4ab",
+                        "primary-fixed": "#ffdad6",
+                        "on-tertiary-fixed-variant": "#404754",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed-variant": "#93000b",
+                        "surface-tint": "#c00013",
+                        "outline-variant": "#e8bcb7",
+                        "on-primary-fixed": "#410002",
+                        "on-tertiary-container": "#fefcff",
+                        "on-surface-variant": "#5e3f3b",
+                        "error-container": "#ffdad6",
+                        "surface-dim": "#d9dadc",
+                        "secondary-fixed": "#d9e3f7",
+                        "on-background": "#191c1e",
+                        "on-secondary-container": "#596374",
+                        "on-surface": "#191c1e",
+                        "tertiary-container": "#6e7583",
+                        "error": "#ba1a1a",
+                        "tertiary-fixed": "#dce2f3",
+                        "on-error-container": "#93000a",
+                        "on-primary-container": "#fffbff",
+                        "inverse-on-surface": "#f0f1f3",
+                        "surface-container-highest": "#e1e2e4",
+                        "primary": "#bb0012",
+                        "on-secondary": "#ffffff",
+                        "surface-container-low": "#f3f4f6",
+                        "surface-container": "#edeef0",
+                        "secondary-container": "#d6e0f4",
+                        "surface-variant": "#e1e2e4",
+                        "on-secondary-fixed": "#121c2a",
+                        "outline": "#936e6a",
+                        "on-secondary-fixed-variant": "#3d4757",
+                        "on-primary": "#ffffff",
+                        "inverse-primary": "#ffb4ab",
+                        "on-error": "#ffffff",
+                        "on-tertiary-fixed": "#151c27",
+                        "tertiary-fixed-dim": "#c0c7d6",
+                        "tertiary": "#555c6a",
+                        "surface-bright": "#f8f9fb",
+                        "secondary": "#555f70"
+                    },
+                    fontFamily: {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        body {
+            min-height: max(884px, 100dvh);
+        }
+
+        input:focus {
+            outline: none !important;
+            border-bottom-width: 2px !important;
+            border-color: #bb0012 !important;
+        }
+
+        .technical-table td,
+        .technical-table th {
+            border: 1px solid #e1e2e4;
+        }
+    </style>
+    <script src="./script.js" defer></script>
+</head>
+<body class="bg-surface font-body text-on-surface min-h-screen pb-32">
+    <header class="fixed top-0 z-50 flex h-16 w-full items-center justify-between border-b border-slate-200/50 bg-white/80 px-6 shadow-sm backdrop-blur-md">
+        <div class="flex items-center gap-4">
+            <span class="material-symbols-outlined text-primary">menu</span>
+            <h1 class="font-headline text-lg font-black uppercase tracking-tight text-on-surface">Ordem de Ajuste</h1>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <div class="hidden gap-2 md:flex">
+                <button class="tab-trigger rounded-lg px-3 py-2 text-sm font-label font-bold uppercase tracking-tight text-primary bg-red-50" data-tab="inicio" type="button">
+                    Início
+                </button>
+                <button class="tab-trigger rounded-lg px-3 py-2 text-sm font-label uppercase tracking-tight text-slate-500" data-tab="historico" type="button">
+                    Histórico
+                </button>
+            </div>
+
+            <button class="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-on-primary duration-200 active:scale-95" onclick="salvar()" type="button">
+                <span class="material-symbols-outlined text-sm">save</span>
+                Salvar
+            </button>
+        </div>
+    </header>
+
+    <main class="mx-auto max-w-6xl px-4 pt-24 md:px-8">
+        <section data-screen="inicio">
+            <div class="summary-grid mb-8 rounded-xl bg-surface-container-low p-6 shadow-sm">
+                <div class="grid grid-cols-1 gap-6 md:grid-cols-3 lg:grid-cols-5">
+                    <div class="flex flex-col gap-1">
+                        <label class="font-label text-xs font-semibold uppercase text-on-surface-variant">Número</label>
+                        <input class="border-b border-outline-variant bg-transparent py-1 font-medium text-on-surface transition-all focus:border-primary" type="text" value="042" />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="font-label text-xs font-semibold uppercase text-on-surface-variant">Circuito</label>
+                        <input class="border-b border-outline-variant bg-transparent py-1 font-medium text-on-surface transition-all focus:border-primary" type="text" value="CRT-PRIMARY-B" />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="font-label text-xs font-semibold uppercase text-on-surface-variant">Tensão (V)</label>
+                        <input class="border-b border-outline-variant bg-transparent py-1 font-medium text-on-surface transition-all focus:border-primary" type="text" value="13.800" />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="font-label text-xs font-semibold uppercase text-on-surface-variant">Marca</label>
+                        <input class="border-b border-outline-variant bg-transparent py-1 font-medium text-on-surface transition-all focus:border-primary" type="text" value="NOJA POWER" />
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="font-label text-xs font-semibold uppercase text-on-surface-variant">Autor</label>
+                        <p class="border-b border-transparent py-1 font-bold text-on-surface">Gabriel Costa De Andrade</p>
+                    </div>
+                </div>
+                <div class="summary-meta mt-4 text-right">
+                    <span class="font-label text-xs font-semibold text-on-surface-variant">DATA: 27/03/2026</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-x-0.5 gap-y-0.5 overflow-hidden rounded-xl border border-outline-variant bg-outline-variant shadow-sm md:grid-cols-2">
+                <section class="flex flex-col bg-surface-container-low">
+                    <div class="border-b border-outline-variant bg-surface-container-highest px-4 py-2 text-on-surface">
+                        <h2 class="text-center font-headline text-[10px] font-bold uppercase tracking-widest italic">Ajuste Proteção de Fase</h2>
+                    </div>
+                    <table class="technical-table w-full border-collapse text-left text-[11px]">
+                        <thead>
+                            <tr class="bg-white">
+                                <th class="w-12 px-2 py-1.5 text-center font-bold uppercase">Grupo</th>
+                                <th class="px-2 py-1.5 text-center font-bold uppercase">Função</th>
+                                <th class="px-2 py-1.5 text-center font-bold uppercase">Ajuste</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="bg-white text-center font-bold" rowspan="8">1</td>
+                                <td class="bg-white px-3 py-1.5 text-on-surface-variant">Pickup 50P (A):</td>
+                                <td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="840" /></td>
+                            </tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Tempo Mínimo-Fase</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="0.05" /></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Pickup 51P (A):</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="200" /></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Curva Temp.:</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="ANSI VI" /></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Time dial:</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="1.00" /></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Curva Rápida:</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="101" /></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Time dial (Curva rápida):</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="0.05" /></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Partida Curva Rápida (A):</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="200" /></td></tr>
+                        </tbody>
+                    </table>
+                </section>
+
+                <section class="flex flex-col bg-surface-container-low">
+                    <div class="border-b border-outline-variant bg-surface-container-highest px-4 py-2 text-on-surface">
+                        <h2 class="text-center font-headline text-[10px] font-bold uppercase tracking-widest italic">Ajuste Proteção de Neutro</h2>
+                    </div>
+                    <table class="technical-table w-full border-collapse text-left text-[11px]">
+                        <thead>
+                            <tr class="bg-white">
+                                <th class="w-12 px-2 py-1.5 text-center font-bold uppercase">Grupo</th>
+                                <th class="px-2 py-1.5 text-center font-bold uppercase">Função</th>
+                                <th class="px-2 py-1.5 text-center font-bold uppercase">Ajuste</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="bg-white text-center font-bold" rowspan="8">1</td>
+                                <td class="bg-white px-3 py-1.5 text-on-surface-variant">Pickup 50N (A):</td>
+                                <td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="480" /></td>
+                            </tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Tempo Mínimo-Fase</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="0.05" /></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Pickup 51N (A):</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="80" /></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Curva Temp.:</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="ANSI VI" /></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Time dial:</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="1.00" /></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Curva Rápida:</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="101" /></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Time dial (Curva rápida):</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="0.05" /></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Partida Curva Rápida (A):</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="80" /></td></tr>
+                        </tbody>
+                    </table>
+                </section>
+
+                <section class="flex flex-col bg-surface-container-low">
+                    <div class="border-b border-outline-variant bg-surface-container-highest px-4 py-2 text-on-surface">
+                        <h2 class="text-center font-headline text-[10px] font-bold uppercase tracking-widest italic">Ajuste Sensitive Earth Fault (SEF)</h2>
+                    </div>
+                    <table class="technical-table w-full flex-grow border-collapse text-left text-[11px]">
+                        <thead>
+                            <tr class="bg-white">
+                                <th class="w-12 px-2 py-1.5 text-center font-bold uppercase">Grupo</th>
+                                <th class="px-2 py-1.5 text-center font-bold uppercase">Função</th>
+                                <th class="px-2 py-1.5 text-center font-bold uppercase">Ajuste</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="bg-white text-center font-bold" rowspan="8">1</td>
+                                <td class="bg-white px-3 py-1.5 text-on-surface-variant">Trip:</td>
+                                <td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="4.0" /></td>
+                            </tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Temporização (s):</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="1.50" /></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Operações:</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="1" /></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Interv. Relig. (s):</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="-" /></td></tr>
+                            <tr><td class="bg-white h-[25px]"></td><td class="bg-white"></td></tr>
+                            <tr><td class="bg-white h-[25px]"></td><td class="bg-white"></td></tr>
+                            <tr><td class="bg-white h-[25px]"></td><td class="bg-white"></td></tr>
+                            <tr><td class="bg-white h-[25px]"></td><td class="bg-white"></td></tr>
+                        </tbody>
+                    </table>
+                </section>
+
+                <section class="flex flex-col bg-surface-container-low">
+                    <div class="border-b border-outline-variant bg-surface-container-highest px-4 py-2 text-on-surface">
+                        <h2 class="text-center font-headline text-[10px] font-bold uppercase tracking-widest italic">Ajustes Gerais</h2>
+                    </div>
+                    <table class="technical-table w-full flex-grow border-collapse text-left text-[11px]">
+                        <thead>
+                            <tr class="bg-white">
+                                <th class="w-12 px-2 py-1.5 text-center font-bold uppercase">Grupo</th>
+                                <th class="px-2 py-1.5 text-center font-bold uppercase">Função</th>
+                                <th class="px-2 py-1.5 text-center font-bold uppercase">Ajuste</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="bg-white text-center font-bold" rowspan="10">1</td>
+                                <td class="bg-white px-3 py-1.5 text-on-surface-variant">Operação 1:</td>
+                                <td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="1T + 3L" /></td>
+                            </tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Interv. Relig. (s):</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="2, 5, 10" /></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Reset Time (s):</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="30" /></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">High Current (A):</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="1200" /></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Maximum Time (s):</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="180" /></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Inrush (s):</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="0.2" /></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Sequence Control:</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="Ativo" /></td></tr>
+                            <tr><td class="bg-white h-[25px]"></td><td class="bg-white"></td></tr>
+                            <tr><td class="bg-white h-[25px]"></td><td class="bg-white"></td></tr>
+                            <tr><td class="bg-white h-[25px]"></td><td class="bg-white"></td></tr>
+                        </tbody>
+                    </table>
+                </section>
+            </div>
+
+            <section class="my-8 rounded-xl border-l-4 border-primary bg-surface-container-low p-6 shadow-sm">
+                <h2 class="mb-4 font-headline text-xs font-bold uppercase tracking-widest text-primary">Observações (Obs.)</h2>
+                <div class="space-y-3">
+                    <div class="flex gap-3">
+                        <span class="material-symbols-outlined text-sm text-primary">info</span>
+                        <p class="text-sm leading-relaxed text-on-surface"><strong>Single Shot:</strong> Ativo conforme os ajustes parametrizados na operação.</p>
+                    </div>
+                    <div class="flex gap-3">
+                        <span class="material-symbols-outlined text-sm text-primary">electric_bolt</span>
+                        <p class="text-sm leading-relaxed text-on-surface"><strong>Linha Viva:</strong> Parametrizar para fase e neutro, curva 101, multiplicador de tempo em 0,01.</p>
+                    </div>
+                </div>
+            </section>
+
+            <div class="mb-12 grid grid-cols-1 gap-8 border-t border-outline-variant/30 p-6 md:grid-cols-2">
+                <div class="flex flex-col gap-2">
+                    <label class="font-label text-xs font-semibold uppercase text-on-surface-variant">Executado por:</label>
+                    <input class="border-b border-outline-variant bg-transparent py-2 font-medium text-on-surface transition-all focus:border-primary" placeholder="Nome do Técnico" type="text" />
+                </div>
+                <div class="flex flex-col gap-2">
+                    <label class="font-label text-xs font-semibold uppercase text-on-surface-variant">Data da Execução:</label>
+                    <input class="border-b border-outline-variant bg-transparent py-2 font-medium text-on-surface transition-all focus:border-primary" type="date" />
+                </div>
+            </div>
+
+            <div class="flex justify-center">
+                <button class="rounded-lg bg-gradient-to-r from-primary to-primary-container px-12 py-4 text-lg font-bold uppercase tracking-widest text-on-primary shadow-xl transition-all duration-200 hover:shadow-primary/20 active:scale-95" onclick="salvar()" type="button">
+                    Finalizar e Salvar Ajustes
+                </button>
+            </div>
+        </section>
+
+        <section class="hidden" data-screen="historico">
+            <div class="rounded-xl bg-surface-container-low p-6 shadow-sm">
+                <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end">
+                    <div class="grid flex-1 grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+                        <div class="flex flex-col gap-2">
+                            <label class="font-label text-xs font-semibold uppercase text-on-surface-variant" for="filtro-numero">Número</label>
+                            <input class="rounded-lg border border-outline-variant bg-white px-3 py-2" id="filtro-numero" type="text" />
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="font-label text-xs font-semibold uppercase text-on-surface-variant" for="filtro-circuito">Circuito</label>
+                            <input class="rounded-lg border border-outline-variant bg-white px-3 py-2" id="filtro-circuito" type="text" />
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="font-label text-xs font-semibold uppercase text-on-surface-variant" for="filtro-ano">Ano</label>
+                            <input class="rounded-lg border border-outline-variant bg-white px-3 py-2" id="filtro-ano" type="text" />
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="font-label text-xs font-semibold uppercase text-on-surface-variant" for="filtro-data-inicio">Data início</label>
+                            <input class="rounded-lg border border-outline-variant bg-white px-3 py-2" id="filtro-data-inicio" type="date" />
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="font-label text-xs font-semibold uppercase text-on-surface-variant" for="filtro-data-fim">Data fim</label>
+                            <input class="rounded-lg border border-outline-variant bg-white px-3 py-2" id="filtro-data-fim" type="date" />
+                        </div>
+                    </div>
+
+                    <button class="rounded-lg bg-primary px-5 py-3 font-bold text-on-primary" onclick="carregarHistorico()" type="button">
+                        Atualizar histórico
+                    </button>
+                </div>
+
+                <div class="overflow-auto rounded-xl border border-outline-variant bg-white">
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-surface-container text-on-surface">
+                            <tr id="historico-head"></tr>
+                        </thead>
+                        <tbody id="historico-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <nav class="fixed bottom-0 z-50 flex h-20 w-full items-center justify-around border-t border-slate-200 bg-white px-4 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] md:hidden">
+        <button class="tab-trigger flex flex-col items-center justify-center rounded-xl bg-red-50/50 px-3 py-1 text-red-600" data-tab="inicio" type="button">
+            <span class="material-symbols-outlined">home</span>
+            <span class="font-label text-[10px] font-medium uppercase tracking-wider">Início</span>
+        </button>
+        <button class="tab-trigger flex flex-col items-center justify-center px-3 py-1 text-slate-500" data-tab="historico" type="button">
+            <span class="material-symbols-outlined">history</span>
+            <span class="font-label text-[10px] font-medium uppercase tracking-wider">Histórico</span>
+        </button>
+        <button class="flex flex-col items-center justify-center px-3 py-1 text-slate-500" onclick="salvar()" type="button">
+            <span class="material-symbols-outlined">save</span>
+            <span class="font-label text-[10px] font-medium uppercase tracking-wider">Salvar</span>
+        </button>
+    </nav>
+</body>
+</html>
