@@ -9,7 +9,7 @@ O projeto foi estruturado para operar como uma aplicação desktop híbrida:
 - Backend em Python
 - Frontend em HTML + JavaScript
 - Janela nativa com `pywebview`
-- Leitura de credenciais a partir de uma planilha Excel
+- Leitura de credenciais a partir do arquivo `db_config.json`
 - Gravação e consulta de dados em SQL Server
 
 O fluxo atual é:
@@ -55,7 +55,7 @@ Camada de acesso à configuração e conexão com banco.
 Responsabilidades:
 
 - localizar o arquivo `db_config.json`
-- ler o caminho da planilha Excel que contém os dados de acesso
+- ler as credenciais definidas em `db_config.json`
 - extrair `server`, `database`, `user` e `password`
 - abrir conexão `pyodbc` com SQL Server
 
@@ -89,7 +89,6 @@ Responsabilidades:
 - `pywebview`
 - `pandas`
 - `pyodbc`
-- `openpyxl`
 - HTML
 - JavaScript
 - Tailwind via CDN
@@ -101,7 +100,7 @@ Antes de executar, garanta que a máquina tenha:
 - Python 3 instalado
 - acesso ao SQL Server
 - `ODBC Driver 17 for SQL Server` instalado
-- acesso ao arquivo Excel com as credenciais
+- arquivo `db_config.json` preenchido com as credenciais
 
 ## Instalação
 
@@ -135,18 +134,21 @@ Exemplo:
 
 ```json
 {
-  "excel_path": "\\\\servidor\\caminho\\tbl_pass_macro_excel.xlsx"
+  "server": "BRAZRPROTAPP01",
+  "database": "edp-coi-sp",
+  "user": "admin-coi",
+  "password": "sua-senha"
 }
 ```
 
-Esse arquivo deve apontar para a planilha Excel que contém:
+Esse arquivo deve definir diretamente:
 
 - servidor
 - banco
 - usuário
 - senha
 
-O código atual espera esses valores nas quatro primeiras linhas da planilha, coluna B.
+O backend usa esses valores diretamente para montar a conexão com o SQL Server.
 
 ## Como Executar
 
@@ -232,7 +234,7 @@ Agora que você vai implementar tratamentos e regras de negócio, o caminho natu
 O projeto ainda tem alguns acoplamentos que valem atenção:
 
 - o JavaScript depende muito da ordem dos inputs no DOM
-- a leitura de credenciais depende do layout fixo da planilha Excel
+- as credenciais locais precisam ser mantidas fora do Git
 - o SQL de histórico ainda não aplica os filtros recebidos
 - o tratamento de erros ainda é básico
 
