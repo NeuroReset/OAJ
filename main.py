@@ -153,6 +153,91 @@ class Api:
 
         return condicoes, parametros
 
+    def _colunas_presentes(self, colunas_tabela, colunas):
+        return [coluna for coluna in colunas if coluna in colunas_tabela]
+
+    def _normalizar_numero_ajuste(self, valor):
+        if valor is None:
+            return ""
+        return str(valor).strip()
+
+    def _montar_condicoes_equipamento(self, colunas_tabela, dados):
+        colunas_identificacao = self._colunas_presentes(
+            colunas_tabela, ["Numero", "Circuito", "Regional", "Marca", "Tipo"]
+        )
+        condicoes = []
+        parametros = {}
+
+        for indice, coluna in enumerate(colunas_identificacao):
+            valor = self._valor_texto(dados, coluna, "")
+            if not valor:
+                continue
+
+            param_nome = f"equip_{indice}"
+            condicoes.append(
+                f"LTRIM(RTRIM(CAST([{coluna}] AS NVARCHAR(255)))) = :{param_nome}"
+            )
+            parametros[param_nome] = valor
+
+        return condicoes, parametros
+
+    def _obter_proximo_numero_ajuste(self, conn, colunas_tabela, dados):
+        if "NumeroAjuste" not in colunas_tabela:
+            return ""
+
+        condicoes, parametros = self._montar_condicoes_equipamento(colunas_tabela, dados)
+        where_sql = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
+        sql = f"""
+        SELECT COALESCE(MAX(TRY_CONVERT(int, [NumeroAjuste])), 0) + 1 AS proximo
+        FROM {TABELA_HISTORICO}
+        {where_sql}
+        """
+
+        proximo = conn.execute(text(sql), parametros).scalar()
+        return "" if proximo in (None, "") else str(proximo)
+
+    def _atualizar_por_numero_ajuste(self, conn, colunas_tabela, dados):
+        if "NumeroAjuste" not in colunas_tabela:
+            return False
+
+        numero_ajuste = self._normalizar_numero_ajuste(dados.get("NumeroAjuste"))
+        if not numero_ajuste:
+            return False
+
+        colunas_update = [
+            coluna
+            for coluna in dados.keys()
+            if coluna in colunas_tabela and coluna != "NumeroAjuste"
+        ]
+        if not colunas_update:
+            return False
+
+        set_sql = ", ".join(
+            f"[{coluna}] = :set_{indice}" for indice, coluna in enumerate(colunas_update)
+        )
+        parametros = {
+            f"set_{indice}": dados[coluna] for indice, coluna in enumerate(colunas_update)
+        }
+
+        condicoes = [
+            "LTRIM(RTRIM(CAST([NumeroAjuste] AS NVARCHAR(255)))) = :numero_ajuste"
+        ]
+        parametros["numero_ajuste"] = numero_ajuste
+
+        condicoes_equipamento, parametros_equipamento = self._montar_condicoes_equipamento(
+            colunas_tabela, dados
+        )
+        condicoes.extend(condicoes_equipamento)
+        parametros.update(parametros_equipamento)
+
+        sql = f"""
+        UPDATE {TABELA_HISTORICO}
+        SET {set_sql}
+        WHERE {' AND '.join(condicoes)}
+        """
+        resultado = conn.execute(text(sql), parametros)
+        return bool(resultado.rowcount and resultado.rowcount > 0)
+
     def _normalizar_filtros_historico(self, filtros):
         filtros = filtros or {}
 
@@ -250,6 +335,13 @@ class Api:
         tamanho_pagina = max(1, min(tamanho_pagina, 200))
         return pagina, tamanho_pagina
 
+    def _order_by_registros_recentes(self):
+        return """
+        ORDER BY
+            TRY_CONVERT(date, [Data_Emissao], 103) DESC,
+            TRY_CONVERT(int, [NumeroAjuste]) DESC
+        """
+
     def _normalizar_subestacao(self, registro):
         for coluna in ("Subestacao", "Subestação", "SE", "Sub_Estacao"):
             valor = self._valor_texto(registro, coluna, "")
@@ -326,9 +418,7 @@ class Api:
             SELECT *
             FROM {TABELA_HISTORICO}
             {where_sql}
-            ORDER BY
-                TRY_CONVERT(date, [Data_Emissao], 103) DESC,
-                TRY_CONVERT(int, [Numero]) DESC
+            {self._order_by_registros_recentes()}
             """
 
             with self._get_conn() as conn:
@@ -392,9 +482,7 @@ class Api:
             sql = f"""
             SELECT *
             FROM {TABELA_HISTORICO}
-            ORDER BY
-                TRY_CONVERT(date, [Data_Emissao], 103) DESC,
-                TRY_CONVERT(int, [Numero]) DESC
+            {self._order_by_registros_recentes()}
             """
 
             with self._get_conn() as conn:
@@ -580,12 +668,6 @@ class Api:
             {where_sql}
             """
 
-            order_by_sql = """
-            ORDER BY
-                TRY_CONVERT(date, [Data_Emissao], 103) DESC,
-                TRY_CONVERT(int, [Numero]) DESC
-            """
-
             with self._get_conn() as conn:
                 total_registros = (
                     conn.execute(text(sql_total), parametros).scalar() or 0
@@ -606,6 +688,7 @@ class Api:
                     "offset": offset,
                     "tamanho_pagina": tamanho_pagina,
                 }
+                order_by_sql = self._order_by_registros_recentes()
 
                 sql = f"""
                 SELECT *
@@ -642,18 +725,44 @@ class Api:
 
     def salvar(self, dados):
         try:
-            colunas = ", ".join(f"[{coluna}]" for coluna in dados.keys())
-            parametros = {
-                f"valor_{indice}": valor for indice, valor in enumerate(dados.values())
-            }
-            placeholders = ", ".join(f":valor_{indice}" for indice, _ in enumerate(dados))
-
-            sql = f"""
-            INSERT INTO {TABELA_HISTORICO} ({colunas})
-            VALUES ({placeholders})
-            """
-
             with self._get_conn() as conn:
+                colunas_tabela = self._obter_colunas_tabela(conn)
+                dados_salvar = {
+                    coluna: valor
+                    for coluna, valor in dados.items()
+                    if coluna in colunas_tabela
+                }
+
+                if not dados_salvar:
+                    return "Erro ao salvar: nenhum campo compatível com a tabela foi enviado."
+
+                if self._atualizar_por_numero_ajuste(conn, colunas_tabela, dados_salvar):
+                    conn.commit()
+                    return "Registro atualizado com sucesso"
+
+                if "NumeroAjuste" in colunas_tabela:
+                    numero_ajuste = self._normalizar_numero_ajuste(
+                        dados_salvar.get("NumeroAjuste")
+                    )
+                    if not numero_ajuste:
+                        dados_salvar["NumeroAjuste"] = self._obter_proximo_numero_ajuste(
+                            conn, colunas_tabela, dados_salvar
+                        )
+
+                colunas = ", ".join(f"[{coluna}]" for coluna in dados_salvar.keys())
+                parametros = {
+                    f"valor_{indice}": valor
+                    for indice, valor in enumerate(dados_salvar.values())
+                }
+                placeholders = ", ".join(
+                    f":valor_{indice}" for indice, _ in enumerate(dados_salvar)
+                )
+
+                sql = f"""
+                INSERT INTO {TABELA_HISTORICO} ({colunas})
+                VALUES ({placeholders})
+                """
+
                 conn.execute(text(sql), parametros)
                 conn.commit()
 

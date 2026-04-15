@@ -66,6 +66,15 @@ let historicoPaginaAtual = 1;
 let historicoTotalPaginas = 0;
 let historicoTotalRegistros = 0;
 let historicoTamanhoPagina = 100;
+const HISTORICO_FILTROS_STORAGE_KEY = "oaj.historico.filtros";
+const HISTORICO_FILTROS_PADRAO = {
+    numero: "",
+    circuito: "",
+    ano: "",
+    data_inicio: "",
+    data_fim: "",
+};
+let historicoFiltros = { ...HISTORICO_FILTROS_PADRAO };
 let consultaFluxo = { regionais: [] };
 let consultaTelaAtual = 1;
 let consultaRegionalId = "";
@@ -77,23 +86,73 @@ let consultaBuscaRegistro = "";
 let consultaEquipamentos = [];
 let consultaCircuitosDisponiveisBanco = [];
 
+function carregarFiltrosHistoricoPersistidos() {
+    try {
+        const salvo = window.localStorage?.getItem(HISTORICO_FILTROS_STORAGE_KEY);
+        if (!salvo) {
+            return { ...HISTORICO_FILTROS_PADRAO };
+        }
+
+        const dados = JSON.parse(salvo);
+        return {
+            ...HISTORICO_FILTROS_PADRAO,
+            numero: String(dados?.numero || "").trim(),
+            circuito: String(dados?.circuito || "").trim(),
+            ano: String(dados?.ano || "").trim(),
+            data_inicio: String(dados?.data_inicio || "").trim(),
+            data_fim: String(dados?.data_fim || "").trim(),
+        };
+    } catch (erro) {
+        console.warn("Falha ao restaurar filtros do histórico.", erro);
+        return { ...HISTORICO_FILTROS_PADRAO };
+    }
+}
+
+function persistirFiltrosHistorico() {
+    try {
+        window.localStorage?.setItem(
+            HISTORICO_FILTROS_STORAGE_KEY,
+            JSON.stringify(historicoFiltros),
+        );
+    } catch (erro) {
+        console.warn("Falha ao persistir filtros do histórico.", erro);
+    }
+}
+
+function aplicarFiltrosHistoricoNaTela() {
+    const mapaCampos = {
+        "filtro-numero": historicoFiltros.numero,
+        "filtro-circuito": historicoFiltros.circuito,
+        "filtro-ano": historicoFiltros.ano,
+        "filtro-data-inicio": historicoFiltros.data_inicio,
+        "filtro-data-fim": historicoFiltros.data_fim,
+    };
+
+    Object.entries(mapaCampos).forEach(([id, valor]) => {
+        const campo = document.getElementById(id);
+        if (campo && campo.value !== valor) {
+            campo.value = valor;
+        }
+    });
+}
+
+function atualizarFiltroHistorico(chave, valor) {
+    historicoFiltros[chave] = String(valor || "").trim();
+    persistirFiltrosHistorico();
+}
+
 function obterFiltrosHistorico() {
     return {
-        numero: document.getElementById("filtro-numero")?.value?.trim() || "",
-        circuito: document.getElementById("filtro-circuito")?.value?.trim() || "",
-        ano: document.getElementById("filtro-ano")?.value?.trim() || "",
-        data_inicio: document.getElementById("filtro-data-inicio")?.value || "",
-        data_fim: document.getElementById("filtro-data-fim")?.value || "",
+        ...historicoFiltros,
         pagina: historicoPaginaAtual,
         tamanho_pagina: historicoTamanhoPagina,
     };
 }
 
 function limparFiltrosHistorico() {
-    document.querySelectorAll("#filtro-numero, #filtro-circuito, #filtro-ano, #filtro-data-inicio, #filtro-data-fim").forEach((campo) => {
-        campo.value = "";
-    });
-
+    historicoFiltros = { ...HISTORICO_FILTROS_PADRAO };
+    persistirFiltrosHistorico();
+    aplicarFiltrosHistoricoNaTela();
     historicoPaginaAtual = 1;
     carregarHistorico();
 }
@@ -195,7 +254,16 @@ function obterAbreviacoesConsultaDisponiveis(regional) {
     return (consultaCircuitosDisponiveisBanco || [])
         .filter((valor) => {
             const texto = normalizarTextoConsulta(valor);
-            return texto === prefixo || texto.startsWith(`${prefixo} `);
+            if (texto === prefixo) {
+                return true;
+            }
+
+            if (!texto.startsWith(prefixo)) {
+                return false;
+            }
+
+            const proximoCaractere = texto.charAt(prefixo.length);
+            return !proximoCaractere || /[^a-z0-9]/.test(proximoCaractere);
         })
         .map((valor) => ({ id: valor, nome: valor }));
 }
@@ -241,6 +309,9 @@ function circuitoCatalogoExisteNoBanco(circuitoCatalogo, circuitosBanco) {
 }
 
 function obterCircuitosConsultaDisponiveis(regional) {
+    if (regional?.circuitos?.length) {
+        return regional.circuitos;
+    }
     return consultaFluxo.circuitos || [];
 }
 
@@ -410,24 +481,18 @@ function renderizarConsulta() {
 }
 
 async function carregarFluxoConsulta() {
-    try {
-        const resposta = await window.pywebview.api.get_regionais_consulta();
-        if (resposta?.status === "erro") {
-            throw new Error(resposta?.mensagem || "Falha ao carregar regionais.");
-        }
-
-        consultaFluxo = {
-            regionais: (resposta?.regionais || []).map((nome) => ({
-                id: nome,
-                nome,
+    consultaFluxo = {
+        regionais: CATALOGO_CONSULTA.map((regional) => ({
+            id: regional.id,
+            nome: regional.nome,
+            circuitos: (regional.circuitos || []).map((circuito) => ({
+                id: circuito.id,
+                nome: circuito.nome,
+                abreviacao: circuito.abreviacao,
             })),
-            circuitos: [],
-        };
-    } catch (erro) {
-        consultaFluxo = { regionais: [], circuitos: [] };
-        console.error(erro);
-        alert(`Falha ao carregar regionais: ${erro.message || erro}`);
-    }
+        })),
+        circuitos: [],
+    };
 }
 
 async function carregarCircuitosConsultaDoBanco() {
@@ -445,20 +510,10 @@ async function carregarCircuitosConsultaDoBanco() {
         }
 
         consultaCircuitosDisponiveisBanco = resposta?.circuitos || [];
-        const prefixos = Array.from(new Set(
-            consultaCircuitosDisponiveisBanco
-                .map((valor) => String(valor || "").trim())
-                .filter(Boolean)
-                .map((valor) => valor.split(/\s+/)[0])
-        ));
-        consultaFluxo.circuitos = prefixos.map((prefixo) => ({
-            id: prefixo,
-            nome: prefixo,
-            abreviacao: prefixo,
-        }));
+        consultaFluxo.circuitos = obterCircuitosConsultaDisponiveis(regionalAtual);
     } catch (erro) {
         consultaCircuitosDisponiveisBanco = [];
-        consultaFluxo.circuitos = [];
+        consultaFluxo.circuitos = obterCircuitosConsultaDisponiveis(regionalAtual);
         console.error(erro);
         alert(`Falha ao carregar circuitos: ${erro.message || erro}`);
     }
@@ -929,6 +984,8 @@ async function salvar() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+    historicoFiltros = carregarFiltrosHistoricoPersistidos();
+    aplicarFiltrosHistoricoNaTela();
     renderizarCabecalhoHistorico(HEADER_ORDEM_AJUSTE);
     sincronizarDadosHeader();
     atualizarEstadoSelecaoHistorico();
@@ -940,8 +997,14 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     document.querySelectorAll("#filtro-numero, #filtro-circuito, #filtro-ano").forEach((campo) => {
+        campo.addEventListener("input", (evento) => {
+            const chave = evento.target.id.replace("filtro-", "").replace("-", "_");
+            atualizarFiltroHistorico(chave, evento.target.value);
+        });
         campo.addEventListener("keydown", (evento) => {
             if (evento.key === "Enter") {
+                const chave = evento.target.id.replace("filtro-", "").replace("-", "_");
+                atualizarFiltroHistorico(chave, evento.target.value);
                 historicoPaginaAtual = 1;
                 carregarHistorico();
             }
@@ -1029,7 +1092,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     document.querySelectorAll("#filtro-data-inicio, #filtro-data-fim").forEach((campo) => {
-        campo.addEventListener("change", () => {
+        campo.addEventListener("change", (evento) => {
+            const chave = evento.target.id.replace("filtro-", "").replace("-", "_");
+            atualizarFiltroHistorico(chave, evento.target.value);
             historicoPaginaAtual = 1;
             carregarHistorico();
         });
