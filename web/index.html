@@ -77,6 +77,18 @@
     <style>
         :root {
             --app-font: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+            --color-bg: #f5f7fa;
+            --color-card: #ffffff;
+            --color-border: #e2e8f0;
+            --color-text: #0f172a;
+            --color-muted: #64748b;
+            --color-primary: #2563eb;
+            --color-success: #16a34a;
+            --color-danger: #dc2626;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --shadow-sm: 0 8px 24px rgba(15, 23, 42, 0.06);
+            --shadow-md: 0 18px 40px rgba(15, 23, 42, 0.10);
         }
 
         body,
@@ -112,21 +124,25 @@
 
         body {
             min-height: max(884px, 100dvh);
+            background: linear-gradient(180deg, #f8fafc 0%, var(--color-bg) 100%);
+            color: var(--color-text);
         }
 
-        input:focus {
+        input:focus,
+        textarea:focus,
+        select:focus {
             outline: none !important;
-            border-bottom-width: 2px !important;
-            border-color: #bb0012 !important;
+            border-color: var(--color-primary) !important;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12) !important;
         }
 
         .technical-table td,
         .technical-table th {
-            border: 1px solid #e1e2e4;
+            border: 1px solid var(--color-border);
         }
 
         .historico-linha-selecionada td {
-            background-color: #fff1f2;
+            background-color: #dbeafe !important;
         }
 
         .historico-scroll-arraste {
@@ -142,7 +158,7 @@
             -webkit-appearance: none;
             -moz-appearance: none;
             appearance: none;
-            background-image: linear-gradient(45deg, transparent 50%, #64748b 50%), linear-gradient(135deg, #64748b 50%, transparent 50%);
+            background-image: linear-gradient(45deg, transparent 50%, var(--color-muted) 50%), linear-gradient(135deg, var(--color-muted) 50%, transparent 50%);
             background-position: calc(100% - 18px) calc(50% - 3px), calc(100% - 12px) calc(50% - 3px);
             background-size: 6px 6px, 6px 6px;
             background-repeat: no-repeat;
@@ -158,38 +174,247 @@
             background-size: 6px 6px, 6px 6px;
             background-repeat: no-repeat;
         }
+
+        .app-shell {
+            border: 1px solid rgba(255, 255, 255, 0.45);
+            background: rgba(248, 250, 252, 0.82);
+            backdrop-filter: blur(12px);
+            border-radius: calc(var(--radius-lg) + 6px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .app-card {
+            background: var(--color-card);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .panel-card {
+            background: #f8fafc;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-lg);
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            line-height: 1.2;
+            font-weight: 800;
+            color: var(--color-text);
+        }
+
+        .section-kicker {
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--color-muted);
+        }
+
+        .field-input {
+            width: 100%;
+            min-height: 44px;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            background: #fff;
+            color: var(--color-text);
+            padding: 0.7rem 0.9rem;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+        }
+
+        .field-input[disabled],
+        .field-input:disabled {
+            background: #eef2f7;
+            color: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        .field-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--color-muted);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            min-height: 42px;
+            padding: 0.72rem 1rem;
+            border-radius: var(--radius-md);
+            border: 1px solid transparent;
+            font-size: 0.92rem;
+            font-weight: 700;
+            transition: transform 0.18s ease, background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            cursor: not-allowed;
+            opacity: 1;
+            transform: none;
+            box-shadow: none;
+            background: #e2e8f0;
+            border-color: #e2e8f0;
+            color: #94a3b8;
+        }
+
+        .btn-primary {
+            background: var(--color-primary);
+            border-color: var(--color-primary);
+            color: #fff;
+            box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18);
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+            border-color: #1d4ed8;
+        }
+
+        .btn-secondary {
+            background: #fff;
+            border-color: var(--color-border);
+            color: var(--color-text);
+        }
+
+        .btn-secondary:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+        }
+
+        .btn-danger {
+            background: var(--color-danger);
+            border-color: var(--color-danger);
+            color: #fff;
+            box-shadow: 0 10px 22px rgba(220, 38, 38, 0.16);
+        }
+
+        .btn-danger:hover {
+            background: #b91c1c;
+            border-color: #b91c1c;
+        }
+
+        .tab-pill {
+            border-radius: 999px;
+            padding: 0.62rem 0.95rem;
+            font-size: 0.76rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--color-muted);
+            transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .tab-pill-active {
+            background: #dbeafe;
+            color: var(--color-primary);
+            box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
+        }
+
+        .data-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            background: #eff6ff;
+            color: #1e293b;
+            font-size: 0.72rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .data-table tbody tr:nth-child(even) td {
+            background: #f8fafc;
+        }
+
+        .data-table tbody tr:hover td {
+            background: #eff6ff;
+        }
+
+        .empty-state {
+            border: 1px dashed #cbd5e1;
+            border-radius: var(--radius-lg);
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            padding: 2.5rem 1.5rem;
+            text-align: center;
+            color: var(--color-muted);
+        }
+
+        .empty-state-icon {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 1rem;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            background: #dbeafe;
+            color: var(--color-primary);
+        }
+
+        .metric-card {
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            background: #fff;
+            padding: 0.95rem 1rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        @media (max-width: 767px) {
+            .app-shell {
+                border-radius: var(--radius-lg);
+            }
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <script src="./script.js" defer></script>
 </head>
-<body class="bg-surface font-body text-on-surface min-h-screen pb-32">
-    <header class="fixed top-0 z-50 flex h-16 w-full items-center justify-between border-b border-slate-200/50 bg-white/80 px-6 shadow-sm backdrop-blur-md">
+<body class="font-body min-h-screen pb-32">
+    <header class="fixed top-0 z-50 flex h-[76px] w-full items-center justify-between border-b border-slate-200/80 bg-white/88 px-4 shadow-sm backdrop-blur-md md:px-6">
         <div class="flex items-center gap-4">
-            <h1 class="font-headline text-lg font-black uppercase tracking-tight text-on-surface">Ordem de Ajuste</h1>
+            <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-primary shadow-sm">
+                <span aria-hidden="true" class="icon icon-md">
+                    <svg fill="none" viewBox="0 0 24 24">
+                        <path d="M6 7h12M6 12h12M6 17h7" stroke-linecap="round" stroke-width="2"></path>
+                    </svg>
+                </span>
+            </div>
+            <div>
+                <h1 class="font-headline text-lg font-black tracking-tight text-on-surface">Ordem de Ajuste</h1>
+                <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Dashboard interno</p>
+            </div>
         </div>
 
-        <div class="flex items-center gap-4">
-            <div class="hidden gap-2 md:flex">
-                <button class="tab-trigger rounded-lg px-3 py-2 text-sm font-label font-bold uppercase tracking-tight text-primary bg-red-50" data-tab="inicio" type="button">
+        <div class="flex items-center gap-3">
+            <div class="hidden items-center gap-2 rounded-full border border-slate-200 bg-slate-50/90 p-1 md:flex">
+                <button class="tab-trigger tab-pill tab-pill-active font-label" data-tab="inicio" type="button">
                     Início
                 </button>
-                <button class="tab-trigger rounded-lg px-3 py-2 text-sm font-label uppercase tracking-tight text-slate-500" data-tab="salvos" type="button">
+                <button class="tab-trigger tab-pill font-label" data-tab="salvos" type="button">
                     Salvos
                 </button>
-                <button class="tab-trigger rounded-lg px-3 py-2 text-sm font-label uppercase tracking-tight text-slate-500" data-tab="historico" type="button">
+                <button class="tab-trigger tab-pill font-label" data-tab="historico" type="button">
                     Histórico
                 </button>
-                <button class="tab-trigger rounded-lg px-3 py-2 text-sm font-label uppercase tracking-tight text-slate-500" data-tab="consulta" type="button">
+                <button class="tab-trigger tab-pill font-label" data-tab="consulta" type="button">
                     Consulta
                 </button>
             </div>
 
-            <div class="hidden items-center gap-2 rounded-lg border border-outline bg-white px-3 py-2 text-xs font-semibold text-on-surface md:flex">
-                <span class="uppercase tracking-[0.16em] text-on-surface-variant">Matrícula</span>
-                <span id="session-matricula-display">-</span>
+            <div class="hidden items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-on-surface md:flex">
+                <span class="uppercase tracking-[0.16em] text-slate-500">Matrícula</span>
+                <span class="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-on-surface shadow-sm" id="session-matricula-display">-</span>
             </div>
 
-            <button class="flex items-center gap-2 rounded-lg border border-outline bg-white px-4 py-2 text-sm font-bold text-on-surface duration-200 active:scale-95" onclick="gerarPdfTeste()" type="button">
+            <button class="btn btn-secondary hidden md:inline-flex" onclick="gerarPdfTeste()" type="button">
                 <span aria-hidden="true" class="icon icon-sm">
                     <svg fill="none" viewBox="0 0 24 24">
                         <path d="M12 5v10" stroke-linecap="round" stroke-width="2"></path>
@@ -199,7 +424,7 @@
                 </span>
                 PDF Teste
             </button>
-            <button class="flex items-center gap-2 rounded-lg border border-outline bg-white px-4 py-2 text-sm font-bold text-on-surface duration-200 active:scale-95" onclick="salvar()" type="button">
+            <button class="btn btn-secondary hidden md:inline-flex" onclick="salvar()" type="button">
                 <span aria-hidden="true" class="icon icon-sm">
                     <svg fill="none" viewBox="0 0 24 24">
                         <path d="M5 4h11l3 3v13H5z" stroke-linejoin="round" stroke-width="2"></path>
@@ -208,7 +433,7 @@
                 </span>
                 Salvar
             </button>
-            <button class="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-on-primary duration-200 active:scale-95" onclick="publicar()" type="button">
+            <button class="btn btn-primary hidden md:inline-flex" onclick="publicar()" type="button">
                 <span aria-hidden="true" class="icon icon-sm">
                     <svg fill="none" viewBox="0 0 24 24">
                         <path d="M12 4v10" stroke-linecap="round" stroke-width="2"></path>
@@ -216,54 +441,55 @@
                         <path d="M5 20h14" stroke-linecap="round" stroke-width="2"></path>
                     </svg>
                 </span>
-                Publish
+                Publicar
             </button>
         </div>
     </header>
 
-    <main class="mx-auto max-w-6xl px-4 pt-24 md:px-8">
+    <main class="mx-auto max-w-7xl px-4 pt-28 md:px-6">
         <section data-screen="inicio">
-            <div class="summary-grid mb-8 overflow-hidden rounded-xl border-[3px] border-on-surface bg-white shadow-sm">
-                <div class="border-t-[3px] border-on-surface"></div>
-                <div class="grid grid-cols-1 gap-x-8 gap-y-4 px-4 py-3 md:grid-cols-[minmax(0,1.7fr)_minmax(220px,0.9fr)_minmax(240px,1fr)] md:px-6">
+            <div class="app-shell p-4 md:p-6">
+            <div class="app-card summary-grid mb-8 overflow-hidden">
+                <div class="border-t-4 border-primary"></div>
+                <div class="grid grid-cols-1 gap-5 px-5 py-5 md:grid-cols-[minmax(0,1.55fr)_minmax(180px,0.72fr)_minmax(240px,0.95fr)] md:gap-x-4 md:px-6">
                     <div class="space-y-3">
                         <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2">
-                            <label class="text-base font-black text-on-surface">Religador:</label>
-                            <input class="min-w-0 border-0 bg-slate-200 px-4 py-2 text-base font-low text-on-surface transition-all focus:border-0 focus:ring-2 focus:ring-primary/25" id="header-numero" type="text" value="" />
+                            <label class="text-sm font-black uppercase tracking-[0.1em] text-slate-700">Religador</label>
+                            <input class="field-input min-w-0 border-0 bg-transparent px-0 py-2 font-semibold shadow-none" id="header-numero" type="text" value="" />
                         </div>
                         <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 pl-6">
-                            <label class="text-xl font-black text-on-surface">Marca:</label>
-                            <input class="min-w-0 border-0 bg-transparent py-1 text-base font-low text-on-surface transition-all focus:border-0 focus:ring-0" id="header-marca" type="text" value="" />
+                            <label class="text-sm font-black uppercase tracking-[0.1em] text-slate-700">Marca</label>
+                            <input class="field-input min-w-0 border-0 bg-transparent px-0 py-2 font-semibold shadow-none" id="header-marca" type="text" value="" />
                         </div>
                         <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2 pl-6">
-                            <label class="text-xl font-black text-on-surface">Autor:</label>
-                            <input class="min-w-0 border-0 bg-transparent py-1 text-base font-low text-on-surface transition-all focus:border-0 focus:ring-0" id="header-autor" placeholder="Nome do Técnico" type="text" value="" />
+                            <label class="text-sm font-black uppercase tracking-[0.1em] text-slate-700">Autor</label>
+                            <input class="field-input min-w-0 border-0 bg-transparent px-0 py-2 font-semibold shadow-none" id="header-autor" placeholder="" type="text" value="" />
                         </div>
                     </div>
 
-                    <div class="flex items-start justify-start pt-1 md:justify-center">
+                    <div class="flex items-start justify-start pt-1">
                         <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
-                            <label class="text-base font-black text-on-surface">Circ:</label>
-                            <input class="min-w-0 border-0 bg-slate-200 px-3 py-2 text-base font-bold text-on-surface transition-all focus:border-0 focus:ring-2 focus:ring-primary/25" id="header-circuito" type="text" value="" />
+                            <label class="text-sm font-black uppercase tracking-[0.1em] text-slate-700">Circuito</label>
+                            <input class="field-input min-w-0 border-0 bg-transparent px-0 py-2 font-semibold shadow-none" id="header-circuito" type="text" value="" />
                         </div>
                     </div>
 
                     <div class="flex flex-col justify-between gap-4 pt-1">
                         <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2">
-                            <label class="text-2xl font-black text-on-surface">Tensão (V):</label>
-                            <input class="min-w-0 border-0 bg-transparent py-1 text-right text-base font-low text-on-surface transition-all focus:border-0 focus:ring-0" id="header-tensao" type="text" value="" />
+                            <label class="text-sm font-black uppercase tracking-[0.1em] text-slate-700">Tensão (V) 13.800V</label>
                         </div>
                         <div class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-2">
-                            <label class="text-2xl font-black text-on-surface md:text-right">Data:</label>
-                            <input class="min-w-0 border-0 bg-transparent py-1 text-right text-base font-low text-on-surface transition-all focus:border-0 focus:ring-0" id="header-data-input" type="date" />
+                            <label class="text-sm font-black uppercase tracking-[0.1em] text-slate-700 md:text-right">Data</label>
+                            <input class="field-input min-w-0 border-0 bg-transparent px-0 py-2 text-right shadow-none" id="header-data-input" type="date" />
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 gap-x-0.5 gap-y-0.5 overflow-hidden rounded-xl border border-outline-variant bg-outline-variant shadow-sm md:grid-cols-2">
+            <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
                 <section class="flex flex-col bg-surface-container-low">
-                    <div class="border-b border-outline-variant bg-surface-container-highest px-4 py-2 text-on-surface">
+                    <div class="app-card overflow-hidden">
+                    <div class="border-b border-outline-variant bg-slate-50 px-4 py-3 text-on-surface">
                         <h2 class="text-center font-headline text-[10px] font-bold uppercase tracking-widest italic">Ajuste Proteção de Fase</h2>
                     </div>
                     <table class="technical-table w-full border-collapse text-left text-[11px]">
@@ -289,10 +515,12 @@
                             <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Partida Curva Rápida (A):</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="" /></td></tr>
                         </tbody>
                     </table>
+                    </div>
                 </section>
 
                 <section class="flex flex-col bg-surface-container-low">
-                    <div class="border-b border-outline-variant bg-surface-container-highest px-4 py-2 text-on-surface">
+                    <div class="app-card overflow-hidden">
+                    <div class="border-b border-outline-variant bg-slate-50 px-4 py-3 text-on-surface">
                         <h2 class="text-center font-headline text-[10px] font-bold uppercase tracking-widest italic">Ajuste Proteção de Neutro</h2>
                     </div>
                     <table class="technical-table w-full border-collapse text-left text-[11px]">
@@ -318,10 +546,12 @@
                             <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Partida Curva Rápida (A):</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="" /></td></tr>
                         </tbody>
                     </table>
+                    </div>
                 </section>
 
                 <section class="flex flex-col bg-surface-container-low">
-                    <div class="border-b border-outline-variant bg-surface-container-highest px-4 py-2 text-on-surface">
+                    <div class="app-card overflow-hidden">
+                    <div class="border-b border-outline-variant bg-slate-50 px-4 py-3 text-on-surface">
                         <h2 class="text-center font-headline text-[10px] font-bold uppercase tracking-widest italic">Ajuste Sensitive Earth Fault (SEF)</h2>
                     </div>
                     <table class="technical-table w-full flex-grow border-collapse text-left text-[11px]">
@@ -347,10 +577,12 @@
                             <tr><td class="bg-white h-[25px]"></td><td class="bg-white"></td></tr>
                         </tbody>
                     </table>
+                    </div>
                 </section>
 
                 <section class="flex flex-col bg-surface-container-low">
-                    <div class="border-b border-outline-variant bg-surface-container-highest px-4 py-2 text-on-surface">
+                    <div class="app-card overflow-hidden">
+                    <div class="border-b border-outline-variant bg-slate-50 px-4 py-3 text-on-surface">
                         <h2 class="text-center font-headline text-[10px] font-bold uppercase tracking-widest italic">Ajustes Gerais</h2>
                     </div>
                     <table class="technical-table w-full flex-grow border-collapse text-left text-[11px]">
@@ -378,10 +610,11 @@
                             <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Sequence Control:</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="" /></td></tr>
                         </tbody>
                     </table>
+                    </div>
                 </section>
             </div>
 
-            <section class="my-8 rounded-xl border-l-4 border-primary bg-surface-container-low p-6 shadow-sm">
+            <section class="app-card my-8 border-l-4 border-primary p-6">
                 <h2 class="mb-4 font-headline text-xs font-bold uppercase tracking-widest text-primary">Observações (Obs.)</h2>
                 <div class="space-y-3">
                     <div class="flex gap-3">
@@ -391,93 +624,97 @@
                         <p class="text-sm leading-relaxed text-on-surface"><strong>Linha Viva:</strong> Parametrizar para fase e neutro, curva 101, multiplicador de tempo em 0,01.</p>
                     </div>
                 </div>
-                <textarea class="mt-4 min-h-28 w-full rounded-lg border border-outline-variant bg-white px-4 py-3 text-sm leading-relaxed text-on-surface" id="observacoes" placeholder="Digite observações adicionais aqui..."></textarea>
+                <textarea class="field-input mt-4 min-h-28 w-full text-sm leading-relaxed" id="observacoes" placeholder="Digite observações adicionais aqui..."></textarea>
             </section>
 
-            <div class="flex flex-col justify-center gap-3 sm:flex-row">
-                <button class="rounded-lg border border-outline bg-white px-8 py-4 text-lg font-bold uppercase tracking-widest text-on-surface shadow-sm transition-all duration-200 hover:bg-slate-50 active:scale-95" onclick="gerarPdfTeste()" type="button">
-                    Gerar PDF Teste
-                </button>
-                <button class="rounded-lg bg-gradient-to-r from-primary to-primary-container px-12 py-4 text-lg font-bold uppercase tracking-widest text-on-primary shadow-xl transition-all duration-200 hover:shadow-primary/20 active:scale-95" onclick="salvar()" type="button">
-                    Salvar Draft
-                </button>
             </div>
         </section>
 
         <section class="hidden" data-screen="salvos">
-            <div class="rounded-xl bg-surface-container-low p-6 shadow-sm">
-                <div class="mb-6 flex flex-col gap-4 rounded-xl border border-outline-variant bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
+            <div class="app-shell p-4 md:p-6">
+                <div class="app-card mb-6 flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
                     <div>
-                        <p class="font-label text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant">Drafts compartilhados</p>
-                        <h2 class="mt-2 text-2xl font-black text-on-surface">Salvos locais do usuário</h2>
-                        <p class="mt-2 text-sm text-on-surface-variant">Visualize, abra, publique ou exclua os drafts da sua matrícula na pasta de rede.</p>
+                        <p class="font-label text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant">Pendente de publicação</p>
+                        <h2 class="mt-2 text-2xl font-black text-on-surface">Estudos do usuário</h2>
+                        <p class="mt-2 text-sm text-on-surface-variant">Visualize, abra, publique ou exclua os estudos na pasta de rede.</p>
                     </div>
-                    <div class="flex items-center gap-3 rounded-xl border border-outline-variant bg-surface px-4 py-3">
+                    <div class="panel-card flex items-center gap-3 px-4 py-3">
                         <div>
                             <div class="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">Sessão ativa</div>
                             <div class="mt-1 text-base font-black text-on-surface" id="drafts-session-matricula">-</div>
                         </div>
-                        <button class="rounded-lg border border-outline bg-white px-3 py-2 text-sm font-bold text-on-surface" onclick="trocarMatricula()" type="button">Trocar</button>
+                        <button class="btn btn-secondary" onclick="trocarMatricula()" type="button">Trocar</button>
                     </div>
                 </div>
 
                 <div class="mb-4 flex items-center justify-between gap-3">
                     <div class="text-sm font-semibold text-on-surface-variant" id="drafts-resumo">0 drafts</div>
-                    <button class="rounded-lg border border-outline bg-white px-4 py-2 text-sm font-bold text-on-surface shadow-sm" onclick="carregarDraftsSalvos()" type="button">Atualizar</button>
+                    <button class="btn btn-secondary" onclick="carregarDraftsSalvos()" type="button">Atualizar</button>
                 </div>
 
                 <div class="grid gap-4" id="drafts-lista"></div>
-                <div class="hidden rounded-xl border border-dashed border-outline-variant bg-white px-6 py-12 text-center text-sm text-on-surface-variant" id="drafts-vazio">Nenhum draft salvo para a matrícula atual.</div>
+                <div class="empty-state hidden" id="drafts-vazio">
+                    <div class="empty-state-icon">
+                        <span aria-hidden="true" class="icon icon-md">
+                            <svg fill="none" viewBox="0 0 24 24">
+                                <path d="M5 5h14v14H5z" stroke-linejoin="round" stroke-width="2"></path>
+                                <path d="M8 9h8M8 13h8M8 17h5" stroke-linecap="round" stroke-width="2"></path>
+                            </svg>
+                        </span>
+                    </div>
+                    <div class="section-title text-[1.15rem]">Nenhum draft salvo</div>
+                    <p class="mt-2 text-sm">A matrícula atual ainda não possui drafts disponíveis para abrir ou publicar.</p>
+                </div>
             </div>
         </section>
 
         <section class="hidden" data-screen="historico">
-            <div class="rounded-xl bg-surface-container-low p-6 shadow-sm">
-                <div class="mb-6 rounded-xl border border-outline-variant bg-white p-4 shadow-sm">
+            <div class="app-shell p-4 md:p-6">
+                <div class="app-card mb-6 p-4">
                     <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-stretch">
-                        <div class="rounded-xl border border-outline-variant/70 bg-surface-container-low p-4">
+                        <div class="panel-card p-4">
                             <div class="mb-4 flex items-center justify-between gap-3">
                                 <div>
-                                    <h3 class="font-label text-xs font-bold uppercase tracking-[0.18em] text-on-surface">Filtros</h3>
+                                    <h3 class="section-kicker text-on-surface">Filtros</h3>
                                 </div>
                             </div>
                             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
                                 <div class="flex min-w-0 flex-col gap-2">
-                                    <label class="font-label text-xs font-semibold uppercase text-on-surface-variant" for="filtro-numero">Número</label>
-                                    <input class="h-11 rounded-lg border border-outline-variant bg-white px-3 py-2" id="filtro-numero" type="text" />
+                                    <label class="field-label" for="filtro-numero">Número</label>
+                                    <input class="field-input" id="filtro-numero" type="text" />
                                 </div>
                                 <div class="flex min-w-0 flex-col gap-2">
-                                    <label class="font-label text-xs font-semibold uppercase text-on-surface-variant" for="filtro-circuito">Circuito</label>
-                                    <input class="h-11 rounded-lg border border-outline-variant bg-white px-3 py-2" id="filtro-circuito" type="text" />
+                                    <label class="field-label" for="filtro-circuito">Circuito</label>
+                                    <input class="field-input" id="filtro-circuito" type="text" />
                                 </div>
                                 <div class="flex min-w-0 flex-col gap-2">
-                                    <label class="font-label text-xs font-semibold uppercase text-on-surface-variant" for="filtro-ano">Ano</label>
-                                    <input class="h-11 rounded-lg border border-outline-variant bg-white px-3 py-2" id="filtro-ano" type="text" />
+                                    <label class="field-label" for="filtro-ano">Ano</label>
+                                    <input class="field-input" id="filtro-ano" type="text" />
                                 </div>
                                 <div class="flex min-w-0 flex-col gap-2">
-                                    <label class="font-label text-xs font-semibold uppercase text-on-surface-variant" for="filtro-data-inicio">Data início</label>
-                                    <input class="h-11 rounded-lg border border-outline-variant bg-white px-3 py-2" id="filtro-data-inicio" type="date" />
+                                    <label class="field-label" for="filtro-data-inicio">Data início</label>
+                                    <input class="field-input" id="filtro-data-inicio" type="date" />
                                 </div>
                                 <div class="flex min-w-0 flex-col gap-2">
-                                    <label class="font-label text-xs font-semibold uppercase text-on-surface-variant" for="filtro-data-fim">Data fim</label>
-                                    <input class="h-11 rounded-lg border border-outline-variant bg-white px-3 py-2" id="filtro-data-fim" type="date" />
+                                    <label class="field-label" for="filtro-data-fim">Data fim</label>
+                                    <input class="field-input" id="filtro-data-fim" type="date" />
                                 </div>
                             </div>
                         </div>
 
-                        <div class="flex min-w-0 flex-col justify-between gap-4 rounded-xl border border-outline-variant/70 bg-surface-container-low p-4">
-                            <div class="rounded-xl border border-outline-variant bg-white px-4 py-4 text-center shadow-sm">
+                        <div class="panel-card flex min-w-0 flex-col justify-between gap-4 p-4">
+                            <div class="metric-card px-4 py-4 text-center">
                                 <span class="block text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Selecionados</span>
                                 <span class="mt-1 block text-lg font-bold text-on-surface" id="historico-selecionados">0 selecionados</span>
                             </div>
                             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                                <button class="h-11 rounded-lg bg-red-600 px-5 py-3 font-bold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500" id="historico-excluir" onclick="deletarSelecionados()" type="button" disabled>
+                                <button class="btn btn-danger h-11" id="historico-excluir" onclick="deletarSelecionados()" type="button" disabled>
                                     Deletar selecionados
                                 </button>
-                                <button class="h-11 rounded-lg border border-outline bg-white px-5 py-3 font-bold text-on-surface" onclick="limparFiltrosHistorico()" type="button">
+                                <button class="btn btn-secondary h-11" onclick="limparFiltrosHistorico()" type="button">
                                     Limpar filtros
                                 </button>
-                                <button class="h-11 rounded-lg border border-outline bg-white px-5 py-3 font-bold text-on-surface sm:col-span-2 xl:col-span-1" onclick="historicoPaginaAtual = 1; carregarHistorico();" type="button">
+                                <button class="btn btn-secondary h-11 sm:col-span-2 xl:col-span-1" onclick="historicoPaginaAtual = 1; carregarHistorico();" type="button">
                                     Atualizar histórico
                                 </button>
                             </div>
@@ -485,31 +722,31 @@
                     </div>
                 </div>
 
-                <div class="historico-scroll-arraste overflow-auto rounded-xl border border-outline-variant bg-white" id="historico-scroll">
-                    <table class="min-w-full text-sm">
-                        <thead class="bg-surface-container text-on-surface">
+                <div class="historico-scroll-arraste app-card overflow-auto" id="historico-scroll">
+                    <table class="data-table min-w-full text-sm">
+                        <thead class="text-on-surface">
                             <tr id="historico-head"></tr>
                         </thead>
                         <tbody id="historico-body"></tbody>
                     </table>
                 </div>
-                <div class="mt-4 flex flex-col gap-3 rounded-xl border border-outline-variant bg-white px-4 py-3 shadow-sm md:flex-row md:items-center md:justify-between">
+                <div class="app-card mt-4 flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
                     <div class="text-sm text-on-surface-variant" id="historico-paginacao-resumo">0 registros</div>
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
                         <label class="flex items-center gap-2 text-sm text-on-surface-variant" for="historico-tamanho-pagina">
                             <span>Por página</span>
-                            <select class="filtro-select h-10 rounded-lg border border-outline-variant bg-white px-3 pr-9" id="historico-tamanho-pagina">
+                            <select class="field-input filtro-select h-10 px-3 pr-9" id="historico-tamanho-pagina">
                                 <option value="50">50</option>
                                 <option value="100" selected>100</option>
                                 <option value="200">200</option>
                             </select>
                         </label>
                         <div class="flex items-center gap-2">
-                            <button class="h-10 rounded-lg border border-outline bg-white px-4 py-2 font-bold text-on-surface disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400" id="historico-pagina-anterior" type="button">
+                            <button class="btn btn-secondary h-10" id="historico-pagina-anterior" type="button">
                                 Anterior
                             </button>
                             <span class="min-w-[120px] text-center text-sm font-semibold text-on-surface" id="historico-pagina-atual">Página 0 de 0</span>
-                            <button class="h-10 rounded-lg border border-outline bg-white px-4 py-2 font-bold text-on-surface disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400" id="historico-pagina-proxima" type="button">
+                            <button class="btn btn-secondary h-10" id="historico-pagina-proxima" type="button">
                                 Próxima
                             </button>
                         </div>
@@ -519,19 +756,20 @@
         </section>
 
         <section class="hidden" data-screen="consulta">
-            <div class="mx-auto rounded-sm border border-[#d8dde6] bg-[#dfe6f0] p-6 shadow-sm md:p-8">
+            <div class="app-shell mx-auto p-6 md:p-8">
                 <div class="hidden min-h-[680px] max-w-[520px] mx-auto flex-col justify-start pt-4 md:min-h-[720px] md:pt-8" id="consulta-tela-1">
                     <div class="mb-6 text-center">
-                        <h1 class="text-[20px] font-extrabold tracking-tight text-black">Proteção</h1>
-
+                        <div class="section-kicker">Consulta</div>
+                        <h1 class="mt-3 text-[28px] font-extrabold tracking-tight text-black">Proteção</h1>
+                        <p class="mt-3 text-sm text-slate-500">Selecione a regional, o circuito e a abreviação final para navegar pelo acervo técnico.</p>
                     </div>
 
-                    <div class="mt-8 space-y-8">
+                    <div class="app-card mt-8 space-y-6 p-6">
                         <label class="block w-full">
-                            <div class="mb-2 text-[12px] font-bold text-[#111827]">Regional</div>
+                            <div class="field-label mb-2 text-[#111827]">Regional</div>
                             <div class="relative">
-                                <select class="consulta-select h-11 w-full border border-[#70757f] bg-white px-3 pr-10 text-[13px] text-[#1f2937] outline-none transition focus:border-[#111827] focus:ring-0" id="consulta-regional"></select>
-                                <div class="pointer-events-none absolute inset-y-0 right-0 flex w-11 items-center justify-center bg-black text-white">
+                                <select class="field-input consulta-select h-11 w-full pr-10 text-[13px] text-[#1f2937]" id="consulta-regional"></select>
+                                <div class="pointer-events-none absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-[12px] bg-blue-600 text-white">
                                     <span aria-hidden="true" class="icon icon-sm">
                                         <svg fill="none" viewBox="0 0 24 24">
                                             <path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
@@ -542,10 +780,10 @@
                         </label>
 
                         <label class="block w-full">
-                            <div class="mb-2 text-[12px] font-bold text-[#111827]">Circuito</div>
+                            <div class="field-label mb-2 text-[#111827]">Circuito</div>
                             <div class="relative">
-                                <select class="consulta-select h-11 w-full border border-[#70757f] bg-white px-3 pr-10 text-[13px] text-[#1f2937] outline-none transition focus:border-[#111827] focus:ring-0 disabled:cursor-not-allowed disabled:bg-[#eef2f7]" id="consulta-circuito" disabled></select>
-                                <div class="pointer-events-none absolute inset-y-0 right-0 flex w-11 items-center justify-center bg-black text-white">
+                                <select class="field-input consulta-select h-11 w-full pr-10 text-[13px] text-[#1f2937]" id="consulta-circuito" disabled></select>
+                                <div class="pointer-events-none absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-[12px] bg-blue-600 text-white">
                                     <span aria-hidden="true" class="icon icon-sm">
                                         <svg fill="none" viewBox="0 0 24 24">
                                             <path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
@@ -556,10 +794,10 @@
                         </label>
 
                         <label class="block w-full">
-                            <div class="mb-2 text-[12px] font-bold text-[#111827]">Abreviação do circuito</div>
+                            <div class="field-label mb-2 text-[#111827]">Abreviação do circuito</div>
                             <div class="relative">
-                                <select class="consulta-select h-11 w-full border border-[#70757f] bg-white px-3 pr-10 text-[13px] text-[#1f2937] outline-none transition focus:border-[#111827] focus:ring-0 disabled:cursor-not-allowed disabled:bg-[#eef2f7]" id="consulta-abreviacao" disabled></select>
-                                <div class="pointer-events-none absolute inset-y-0 right-0 flex w-11 items-center justify-center bg-black text-white">
+                                <select class="field-input consulta-select h-11 w-full pr-10 text-[13px] text-[#1f2937]" id="consulta-abreviacao" disabled></select>
+                                <div class="pointer-events-none absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-[12px] bg-blue-600 text-white">
                                     <span aria-hidden="true" class="icon icon-sm">
                                         <svg fill="none" viewBox="0 0 24 24">
                                             <path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
@@ -571,19 +809,19 @@
                     </div>
 
                     <div class="mt-14 flex justify-center">
-                        <button class="min-w-[92px] rounded-md bg-black px-8 py-2.5 text-[14px] font-bold text-white transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:bg-[#7b8290]" id="consulta-ir" type="button" disabled>
+                        <button class="btn btn-primary min-w-[120px]" id="consulta-ir" type="button" disabled>
                             Ir
                         </button>
                     </div>
                 </div>
 
                 <div class="hidden min-h-[680px]" id="consulta-tela-2">
-                    <div class="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[#cad2dd] pb-4">
+                    <div class="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
                         <div>
                             <h1 class="text-[22px] font-extrabold text-black">Equipamentos do circuito</h1>
                             <p class="mt-1 text-[13px] text-[#4b5563]">Selecione um equipamento para abrir os registros em tabela.</p>
                         </div>
-                        <button class="inline-flex items-center gap-2 rounded-md border border-[#aeb7c4] bg-white px-4 py-2 text-[13px] font-semibold text-[#111827]" id="consulta-voltar-1" type="button">
+                        <button class="btn btn-secondary" id="consulta-voltar-1" type="button">
                             <span aria-hidden="true" class="icon icon-sm">
                                 <svg fill="none" viewBox="0 0 24 24">
                                     <path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
@@ -594,9 +832,9 @@
                     </div>
 
                     <div class="mb-6 grid gap-3 md:grid-cols-3">
-                        <div class="rounded-md border border-[#cfd6df] bg-white px-4 py-3 shadow-sm"><div class="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">Regional</div><div class="text-[14px] font-semibold text-[#111827]" id="consulta-pill-regional">-</div></div>
-                        <div class="rounded-md border border-[#cfd6df] bg-white px-4 py-3 shadow-sm"><div class="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">Circuito</div><div class="text-[14px] font-semibold text-[#111827]" id="consulta-pill-circuito">-</div></div>
-                        <div class="rounded-md border border-[#cfd6df] bg-white px-4 py-3 shadow-sm"><div class="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">Abreviação</div><div class="text-[14px] font-semibold text-[#111827]" id="consulta-pill-abreviacao">-</div></div>
+                        <div class="metric-card"><div class="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">Regional</div><div class="text-[14px] font-semibold text-[#111827]" id="consulta-pill-regional">-</div></div>
+                        <div class="metric-card"><div class="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">Circuito</div><div class="text-[14px] font-semibold text-[#111827]" id="consulta-pill-circuito">-</div></div>
+                        <div class="metric-card"><div class="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">Abreviação</div><div class="text-[14px] font-semibold text-[#111827]" id="consulta-pill-abreviacao">-</div></div>
                     </div>
 
                     <div class="mb-5">
@@ -607,21 +845,21 @@
                                     <circle cx="11" cy="11" r="6" stroke-width="2"></circle>
                                 </svg>
                             </span>
-                            <input class="h-11 w-full rounded-md border border-[#b8c1cd] bg-white pl-10 pr-3 text-[13px] outline-none focus:border-black" id="consulta-busca-equipamento" placeholder="Buscar equipamento por nome ou código" type="text" />
+                            <input class="field-input h-11 w-full pl-10 pr-3 text-[13px]" id="consulta-busca-equipamento" placeholder="Buscar equipamento por nome ou código" type="text" />
                         </div>
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3" id="consulta-equipamentos"></div>
-                    <div class="hidden rounded-md border border-dashed border-[#b4becb] bg-white px-4 py-10 text-center text-[13px] text-[#6b7280]" id="consulta-equipamentos-vazio">Nenhum equipamento encontrado para a busca informada.</div>
+                    <div class="empty-state hidden" id="consulta-equipamentos-vazio">Nenhum equipamento encontrado para a busca informada.</div>
                 </div>
 
                 <div class="hidden min-h-[680px]" id="consulta-tela-3">
-                    <div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[#cad2dd] pb-4">
+                    <div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
                         <div>
                             <div class="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#6b7280]" id="consulta-breadcrumb">-</div>
                             <h1 class="text-[22px] font-extrabold text-black">Registros do equipamento</h1>
                         </div>
-                        <button class="inline-flex items-center gap-2 rounded-md border border-[#aeb7c4] bg-white px-4 py-2 text-[13px] font-semibold text-[#111827]" id="consulta-voltar-2" type="button">
+                        <button class="btn btn-secondary" id="consulta-voltar-2" type="button">
                             <span aria-hidden="true" class="icon icon-sm">
                                 <svg fill="none" viewBox="0 0 24 24">
                                     <path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
@@ -632,10 +870,10 @@
                     </div>
 
                     <div class="mb-5 grid gap-3 md:grid-cols-4">
-                        <div class="rounded-md border border-[#cfd6df] bg-white px-4 py-3 shadow-sm"><div class="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">Regional</div><div class="text-[14px] font-semibold text-[#111827]" id="consulta-pill3-regional">-</div></div>
-                        <div class="rounded-md border border-[#cfd6df] bg-white px-4 py-3 shadow-sm"><div class="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">Circuito</div><div class="text-[14px] font-semibold text-[#111827]" id="consulta-pill3-circuito">-</div></div>
-                        <div class="rounded-md border border-[#cfd6df] bg-white px-4 py-3 shadow-sm"><div class="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">Abreviação</div><div class="text-[14px] font-semibold text-[#111827]" id="consulta-pill3-abreviacao">-</div></div>
-                        <div class="rounded-md border border-[#cfd6df] bg-white px-4 py-3 shadow-sm"><div class="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">Equipamento</div><div class="text-[14px] font-semibold text-[#111827]" id="consulta-pill3-equipamento">-</div></div>
+                        <div class="metric-card"><div class="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">Regional</div><div class="text-[14px] font-semibold text-[#111827]" id="consulta-pill3-regional">-</div></div>
+                        <div class="metric-card"><div class="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">Circuito</div><div class="text-[14px] font-semibold text-[#111827]" id="consulta-pill3-circuito">-</div></div>
+                        <div class="metric-card"><div class="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">Abreviação</div><div class="text-[14px] font-semibold text-[#111827]" id="consulta-pill3-abreviacao">-</div></div>
+                        <div class="metric-card"><div class="mb-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#6b7280]">Equipamento</div><div class="text-[14px] font-semibold text-[#111827]" id="consulta-pill3-equipamento">-</div></div>
                     </div>
 
                     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -646,15 +884,15 @@
                                     <circle cx="11" cy="11" r="6" stroke-width="2"></circle>
                                 </svg>
                             </span>
-                            <input class="h-11 w-full rounded-md border border-[#b8c1cd] bg-white pl-10 pr-3 text-[13px] outline-none focus:border-black" id="consulta-busca-registro" placeholder="Buscar nos registros" type="text" />
+                            <input class="field-input h-11 w-full pl-10 pr-3 text-[13px]" id="consulta-busca-registro" placeholder="Buscar nos registros" type="text" />
                         </div>
-                        <div class="rounded-md bg-black px-4 py-2 text-[12px] font-bold uppercase tracking-[0.12em] text-white" id="consulta-registros-total">0 registros</div>
+                        <div class="rounded-xl bg-slate-900 px-4 py-2 text-[12px] font-bold uppercase tracking-[0.12em] text-white" id="consulta-registros-total">0 registros</div>
                     </div>
 
-                    <div class="overflow-hidden rounded-md border border-[#bac4d0] bg-white shadow-sm">
+                    <div class="app-card overflow-hidden">
                         <div class="max-h-[480px] overflow-auto">
-                            <table class="min-w-full border-collapse text-[13px]">
-                                <thead class="sticky top-0 z-10 bg-[#e8edf4]">
+                            <table class="data-table min-w-full border-collapse text-[13px]">
+                                <thead class="sticky top-0 z-10">
                                     <tr class="text-left text-[#111827]" id="consulta-registros-head"></tr>
                                 </thead>
                                 <tbody id="consulta-registros-body"></tbody>
@@ -662,14 +900,14 @@
                         </div>
                     </div>
 
-                    <div class="hidden mt-4 rounded-md border border-dashed border-[#b4becb] bg-white px-4 py-10 text-center text-[13px] text-[#6b7280]" id="consulta-registros-vazio">Nenhum registro encontrado para o filtro informado.</div>
+                    <div class="empty-state hidden mt-4" id="consulta-registros-vazio">Nenhum registro encontrado para o filtro informado.</div>
                 </div>
             </div>
         </section>
     </main>
 
-    <nav class="fixed bottom-0 z-50 flex h-20 w-full items-center justify-around border-t border-slate-200 bg-white px-4 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] md:hidden">
-        <button class="tab-trigger flex flex-col items-center justify-center rounded-xl bg-red-50/50 px-3 py-1 text-red-600" data-tab="inicio" type="button">
+    <nav class="fixed bottom-0 z-50 flex h-20 w-full items-center justify-around border-t border-slate-200 bg-white/96 px-4 shadow-[0_-8px_28px_rgba(15,23,42,0.08)] backdrop-blur-md md:hidden">
+        <button class="tab-trigger flex flex-col items-center justify-center rounded-xl bg-blue-50 px-3 py-1 text-blue-600" data-tab="inicio" type="button">
             <span aria-hidden="true" class="icon icon-md">
                 <svg fill="none" viewBox="0 0 24 24">
                     <path d="M4 10.5L12 4l8 6.5" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>

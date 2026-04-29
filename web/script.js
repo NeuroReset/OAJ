@@ -330,8 +330,10 @@ function alternarTela(aba) {
         const ativa = botao.dataset.tab === aba;
         botao.classList.toggle("text-primary", ativa);
         botao.classList.toggle("font-bold", ativa);
-        botao.classList.toggle("bg-red-50", ativa);
+        botao.classList.toggle("tab-pill-active", ativa);
+        botao.classList.toggle("bg-blue-50", ativa && !botao.classList.contains("tab-pill"));
         botao.classList.toggle("text-slate-500", !ativa);
+        botao.classList.toggle("text-blue-600", ativa && !botao.classList.contains("tab-pill"));
     });
 
     if (aba === "historico") {
@@ -385,7 +387,7 @@ function renderizarDraftsSalvos() {
     lista.innerHTML = draftsSalvos.map((draft) => {
         const statusLock = obterStatusLockDraft(draft);
         return `
-            <article class="rounded-xl border border-outline-variant bg-white p-5 shadow-sm">
+            <article class="app-card p-5">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div class="space-y-3">
                         <div class="flex flex-wrap items-center gap-2">
@@ -400,9 +402,9 @@ function renderizarDraftsSalvos() {
                         </div>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                        <button class="rounded-lg border border-outline bg-white px-4 py-2 text-sm font-bold text-on-surface" onclick="abrirDraftSalvo('${draft.equipment_id}')" type="button">Abrir</button>
-                        <button class="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-on-primary" onclick="publicarDraftSalvo('${draft.equipment_id}')" type="button">Publicar</button>
-                        <button class="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700" onclick="excluirDraftSalvo('${draft.equipment_id}')" type="button">Excluir</button>
+                        <button class="btn btn-secondary" onclick="abrirDraftSalvo('${draft.equipment_id}')" type="button">Abrir</button>
+                        <button class="btn btn-primary" onclick="publicarDraftSalvo('${draft.equipment_id}')" type="button">Publicar</button>
+                        <button class="btn btn-danger" onclick="excluirDraftSalvo('${draft.equipment_id}')" type="button">Excluir</button>
                     </div>
                 </div>
             </article>
@@ -415,7 +417,7 @@ async function carregarDraftsSalvos() {
     const vazio = document.getElementById("drafts-vazio");
     const resumo = document.getElementById("drafts-resumo");
     if (lista) {
-        lista.innerHTML = `<div class="rounded-xl border border-outline-variant bg-white px-6 py-8 text-center text-sm text-on-surface-variant">Carregando drafts...</div>`;
+        lista.innerHTML = `<div class="app-card px-6 py-8 text-center text-sm text-on-surface-variant">Carregando drafts...</div>`;
     }
     if (vazio) {
         vazio.classList.add("hidden");
@@ -437,7 +439,7 @@ async function carregarDraftsSalvos() {
     } catch (erro) {
         draftsSalvos = [];
         if (lista) {
-            lista.innerHTML = `<div class="rounded-xl border border-red-200 bg-red-50 px-6 py-8 text-center text-sm text-red-700">${erro?.message || erro}</div>`;
+            lista.innerHTML = `<div class="app-card border-red-200 bg-red-50 px-6 py-8 text-center text-sm text-red-700">${erro?.message || erro}</div>`;
         }
         if (resumo) {
             resumo.textContent = "Erro ao carregar";
@@ -665,7 +667,7 @@ function renderizarTela2Consulta() {
     container.innerHTML = filtrados.map((item) => `
         <button
             type="button"
-            class="consulta-equipamento rounded-md border border-[#c6ced9] bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-black"
+            class="consulta-equipamento app-card p-5 text-left transition hover:-translate-y-0.5 hover:border-blue-500 hover:shadow-md"
             data-id="${item.id}"
         >
             <div class="mb-3 flex items-start justify-between gap-3">
@@ -673,12 +675,12 @@ function renderizarTela2Consulta() {
                     <div class="text-[16px] font-bold text-[#111827]">${item.nome}</div>
                     <div class="mt-1 text-[12px] font-medium text-[#6b7280]">${item.codigo}</div>
                 </div>
-                <div class="rounded-md bg-black px-3 py-2 text-center text-white">
+                <div class="rounded-xl bg-slate-900 px-3 py-2 text-center text-white">
                     <div class="text-[18px] font-extrabold leading-none">${item.total_registros || item.registros.length}</div>
                     <div class="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em]">registros</div>
                 </div>
             </div>
-            <div class="flex items-center justify-between border-t border-[#edf1f5] pt-3 text-[12px] font-semibold text-[#374151]">
+            <div class="flex items-center justify-between border-t border-slate-200 pt-3 text-[12px] font-semibold text-[#374151]">
                 <span class="inline-flex items-center gap-2">Abrir tabela</span>
                 <span aria-hidden="true" class="icon icon-sm"><svg fill="none" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg></span>
             </div>
@@ -733,13 +735,13 @@ function renderizarTela3Consulta() {
 
     const colunas = Object.keys(filtrados[0] || {});
     head.innerHTML = colunas
-        .map((coluna) => `<th class="border-b border-[#cad2dd] px-4 py-3 font-bold whitespace-nowrap">${coluna}</th>`)
+        .map((coluna) => `<th class="border-b border-slate-200 px-4 py-3 font-bold whitespace-nowrap">${coluna}</th>`)
         .join("");
 
     vazio.classList.add("hidden");
     body.innerHTML = filtrados.map((row, idx) => `
         <tr class="${idx % 2 === 0 ? "bg-white" : "bg-[#f7f9fc]"}">
-            ${colunas.map((coluna) => `<td class="border-b border-[#edf1f5] px-4 py-3 whitespace-nowrap">${row[coluna] ?? ""}</td>`).join("")}
+            ${colunas.map((coluna) => `<td class="border-b border-slate-100 px-4 py-3 whitespace-nowrap">${row[coluna] ?? ""}</td>`).join("")}
         </tr>
     `).join("");
 }
@@ -850,13 +852,13 @@ function renderizarCabecalhoHistorico(colunas) {
     }
 
     const colunaSelecao = `
-        <th class="px-3 py-2 text-center">
+        <th class="px-3 py-3 text-center">
             <input aria-label="Selecionar todas as linhas" class="rounded border-outline-variant" id="historico-selecionar-todos" type="checkbox" />
         </th>
     `;
 
     head.innerHTML = colunaSelecao + colunas
-        .map((coluna) => `<th class="px-3 py-2 font-bold uppercase text-center whitespace-nowrap">${coluna}</th>`)
+        .map((coluna) => `<th class="px-4 py-3 font-bold uppercase text-center whitespace-nowrap">${coluna}</th>`)
         .join("");
 
     const selecionarTodos = document.getElementById("historico-selecionar-todos");
@@ -1044,10 +1046,10 @@ function renderizarTabelaHistorico(colunas, registros) {
             const classeLinha = indice % 2 === 0 ? "bg-white" : "bg-surface-container-low";
             const selecionada = historicoSelecionados.has(indice);
             const colunasHtml = colunas
-                .map((coluna) => `<td class="px-3 py-2 whitespace-nowrap ${classeLinha}">${registro[coluna] ?? ""}</td>`)
+                .map((coluna) => `<td class="px-4 py-3 whitespace-nowrap ${classeLinha}">${registro[coluna] ?? ""}</td>`)
                 .join("");
             const checkboxHtml = `
-                <td class="px-3 py-2 text-center ${classeLinha}">
+                <td class="px-4 py-3 text-center ${classeLinha}">
                     <input aria-label="Selecionar linha ${indice + 1}" class="historico-checkbox rounded border-outline-variant" data-indice="${indice}" type="checkbox" ${selecionada ? "checked" : ""} />
                 </td>
             `;
