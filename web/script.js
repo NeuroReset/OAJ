@@ -1332,6 +1332,19 @@ async function salvar() {
     alert(`${res?.mensagem || "Salvo com sucesso"}${mensagemArquivos}`);
 }
 
+async function gerarPdfTeste() {
+    const dados = montarRegistroOrdenado();
+    const res = await window.pywebview.api.gerar_pdf_excel_teste(dados);
+    if (res?.status === "erro") {
+        alert(res?.mensagem || "Falha ao gerar PDF de teste.");
+        return;
+    }
+
+    const arquivos = Array.isArray(res?.arquivos_pdf) ? res.arquivos_pdf : [];
+    const mensagemArquivos = arquivos.length ? `\nPDF salvo em:\n${arquivos.join("\n")}` : "";
+    alert(`${res?.mensagem || "PDF de teste gerado com sucesso"}${mensagemArquivos}`);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     historicoFiltros = carregarFiltrosHistoricoPersistidos();
     aplicarFiltrosHistoricoNaTela();

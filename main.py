@@ -98,7 +98,7 @@ class Api:
     def __init__(self):
         self._catalogo_consulta_cache = []
         self._catalogo_consulta_cache_mtime_ns = None
-        self.pdf_service = PdfService(
+        self._pdf_service = PdfService(
             base_dir=BASE_DIR,
             valor_texto=self._valor_texto,
             obter_regional_pdf=self._obter_regional_pdf,
@@ -316,6 +316,29 @@ class Api:
         if valor is None:
             return ""
         return str(valor).strip()
+
+    def _formatar_data_consulta(self, valor):
+        texto = self._valor_texto({"valor": valor}, "valor", "")
+        for formato_entrada in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
+            try:
+                return datetime.strptime(texto, formato_entrada).strftime("%d/%m/%Y")
+            except ValueError:
+                continue
+        return texto
+
+    def _montar_codigo_consulta(self, registro, fallback):
+        data_ajuste = self._formatar_data_consulta(
+            self._valor_texto(registro, "Data_Emissao", "")
+        )
+        numero_equipamento = self._valor_texto(registro, "Numero", "")
+
+        if data_ajuste and numero_equipamento:
+            return f"{data_ajuste}_RL{numero_equipamento}"
+        if data_ajuste:
+            return data_ajuste
+        if numero_equipamento:
+            return f"RL{numero_equipamento}"
+        return fallback
 
     def _montar_condicoes_equipamento(self, colunas_tabela, dados):
         colunas_identificacao = self._colunas_presentes(
@@ -590,7 +613,8 @@ class Api:
             tipo = self._valor_texto(registro, "Tipo", "")
             numero = self._valor_texto(registro, "Numero", "")
             nome = tipo or marca or f"Equipamento {indice + 1}"
-            codigo = " - ".join([parte for parte in [marca, numero] if parte]) or f"REG-{indice + 1}"
+            codigo_padrao = " - ".join([parte for parte in [marca, numero] if parte]) or f"REG-{indice + 1}"
+            codigo = self._montar_codigo_consulta(registro, codigo_padrao)
             chave = f"{nome.lower()}::{codigo.lower()}"
 
             equipamento = equipamentos_map.setdefault(
@@ -994,10 +1018,29 @@ class Api:
             }
 
     def gerar_pdf_excel(self, dados):
-        return self.pdf_service.gerar_pdf_excel(dados)
+        return self._pdf_service.gerar_pdf_excel(dados)
+
+    def gerar_pdf_excel_teste(self, dados):
+        try:
+            dados = dados or {}
+            regional_inferida = self._obter_regional_pdf(dados)
+            if regional_inferida:
+                dados["RegionalDetectada"] = regional_inferida
+                if not self._valor_texto(dados, "Regional", ""):
+                    dados["Regional"] = regional_inferida
+
+            caminho_pdf = self._pdf_service.gerar_pdf_excel_desktop(dados)
+            return {
+                "status": "ok",
+                "mensagem": "PDF de teste gerado com sucesso",
+                "caminho_pdf": caminho_pdf,
+                "arquivos_pdf": [caminho_pdf],
+            }
+        except Exception as e:
+            return {"status": "erro", "mensagem": f"Erro ao gerar PDF de teste: {str(e)}"}
 
     def _gerar_pdf(self, dados):
-        return self.pdf_service.gerar_pdf_navegador(dados)
+        return self._pdf_service.gerar_pdf_navegador(dados)
 
     def salvar(self, dados):
         try:

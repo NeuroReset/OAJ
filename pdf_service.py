@@ -18,21 +18,53 @@ except ImportError:
 
 from db import load_config
 
+DEFAULT_EXCEL_CELL_MAP = {
+    "Religador": "B7",
+    "Circuito": "E7",
+    "TensaoPdf": "H7",
+    "Marca": "B8",
+    "Data_Emissao": "H8",
+    "Engenheiro": "B9",
+    "Pickup_50P": "C13",
+    "Tempo_Minimo_50P": "C14",
+    "Pickup_51P": "C15",
+    "Curva_Fase": "C16",
+    "TimeDial_Fase": "C17",
+    "Curva_Rapida_Fase": "C18",
+    "TimeDial_CR": "C19",
+    "PartidaCR": "C20",
+    "Pickup_50N": "H13",
+    "Tempo_Minimo_50N": "H14",
+    "Pickup_51N": "H15",
+    "Curva_Neutro": "H16",
+    "TimeDial_Neutro": "H17",
+    "CurvaRapidaNeutro": "H18",
+    "Time_Dial_CR": "H19",
+    "Partida_da_CR": "H20",
+    "Trip": "C24",
+    "Temporizacao": "C25",
+    "Operacoes": "C26",
+    "Tempo_Morto": "C27",
+    "Operacao_1": "H24",
+    "Operacao_2": "H25",
+    "Operacao_3": "H26",
+    "Operacao_4": "H27",
+    "Tempo_Morto_Adicional": "H28",
+    "Reset_Time": "H29",
+    "HCL": "H30",
+    "Maximum_Time": "H31",
+    "Inrush": "H32",
+    "Sequence_Control": "H33",
+    "Observacoes": "B35",
+}
+
 
 @dataclass
 class ExcelTemplateConfig:
     template_path: Path
     sheet_name: str = "pdf fim"
     cell_map: dict[str, str] = field(
-        default_factory=lambda: {
-            # "Numero": "B2",
-            # "Circuito": "B3",
-            # "Regional": "B4",
-            # "Marca": "B5",
-            # "Tipo": "B6",
-            # "Data_Emissao": "B7",
-            # "Engenheiro": "B8",
-        }
+        default_factory=lambda: DEFAULT_EXCEL_CELL_MAP.copy()
     )
 
 
@@ -78,26 +110,34 @@ class PdfService:
                 continue
         return datetime.now().strftime("%Y%m%d")
 
-    def _montar_nome_pdf(self, dados):
-        circuito = self._normalizar_nome_arquivo(
+    def _obter_tipo_pdf(self, dados):
+        return self._normalizar_nome_arquivo(
+            self._valor_texto(dados, "Tipo", "Tipo"),
+            "Tipo",
+        )
+
+    def _obter_circuito_pdf(self, dados):
+        return self._normalizar_nome_arquivo(
             self._valor_texto(dados, "Circuito", "Circuito"),
             "Circuito",
         )
-        numero = self._normalizar_nome_arquivo(
-            self._valor_texto(dados, "Numero", "SemNumero"),
+
+    def _obter_numero_rl_pdf(self, dados):
+        return self._normalizar_nome_arquivo(
+            self._valor_texto(dados, "Numero", "")
+            or self._valor_texto(dados, "Religador", "SemNumero"),
             "SemNumero",
         )
+
+    def _montar_nome_pdf(self, dados):
         data_pdf = self._extrair_data_pdf(dados)
-        return f"{circuito}_{numero}_{data_pdf}.pdf"
+        tipo = self._obter_tipo_pdf(dados)
+        numero = self._obter_numero_rl_pdf(dados)
+        circuito = self._obter_circuito_pdf(dados)
+        return f"{data_pdf}_RL_{tipo}_{numero}_{circuito}.pdf"
 
     def _montar_nome_pdf_excel(self, dados):
-        religador = self._normalizar_nome_arquivo(
-            self._valor_texto(dados, "Numero", "")
-            or self._valor_texto(dados, "Religador", ""),
-            "Religador",
-        )
-        data_pdf = self._extrair_data_pdf(dados)
-        return f"{religador}_{data_pdf}.pdf"
+        return self._montar_nome_pdf(dados)
 
     def _obter_roots_pdf(self):
         config = load_config()
@@ -144,9 +184,73 @@ class PdfService:
         for campo, celula in self.excel_template.cell_map.items():
             if not celula:
                 continue
-            worksheet[celula] = dados.get(campo, "")
+            worksheet[celula] = self._obter_valor_campo_excel(campo, dados)
+
+    def _obter_valor_campo_excel(self, campo, dados):
+        if campo == "Religador":
+            return self._valor_texto(dados, "Numero", "") or self._valor_texto(
+                dados, "Religador", ""
+            )
+
+        if campo == "Circuito":
+            return self._valor_texto(dados, "Circuito", "")
+
+        if campo == "TensaoPdf":
+            return self._valor_texto(dados, "TensaoPdf", "") or self._valor_texto(
+                dados, "Tensao", ""
+            )
+
+        if campo == "Observacoes":
+            return self._montar_observacoes_excel(dados)
+
+        return dados.get(campo, "")
+
+    def _montar_observacoes_excel(self, dados):
+        observacoes = self._valor_texto(dados, "Observacoes", "")
+        engenheiro = self._valor_texto(dados, "Engenheiro", "")
+        data_emissao = self._valor_texto(dados, "Data_Emissao", "")
+
+        linhas = [
+            "Single Shot: Ativo conforme os ajustes parametrizados na operacao 01.",
+            "Linha Viva: Parametrizar para fase e neutro, curva 101, multiplicador de tempo em 0,01.",
+            "",
+            observacoes or "",
+            "",
+            f"Executado: {engenheiro}",
+            f"Data: {data_emissao}",
+        ]
+        return "\n".join(linhas).strip()
 
     def gerar_pdf_excel(self, dados):
+        return self._gerar_pdf_excel_em_destino(dados, self.base_dir / "pdfs")
+
+    def gerar_pdf_excel_desktop(self, dados):
+        return self._gerar_pdf_excel_em_destino(dados, self._obter_desktop_dir())
+
+    def _obter_desktop_dir(self):
+        home = Path.home()
+        candidatos = [
+            home / "Desktop",
+            home / "Área de Trabalho",
+        ]
+
+        candidatos.extend(
+            caminho
+            for caminho in home.glob("OneDrive*")
+            if caminho.is_dir()
+            for caminho in (
+                caminho / "Desktop",
+                caminho / "Área de Trabalho",
+            )
+        )
+
+        for candidato in candidatos:
+            if candidato.exists():
+                return candidato
+
+        return home / "Desktop"
+
+    def _gerar_pdf_excel_em_destino(self, dados, destino_dir):
         template_path = self.excel_template.template_path
         if not template_path.exists():
             raise FileNotFoundError(f"Template Excel nÃ£o encontrado: {template_path}")
@@ -156,7 +260,7 @@ class PdfService:
                 "DependÃªncias de Excel nÃ£o instaladas. Instale openpyxl e pywin32."
             )
 
-        pdf_root = self.base_dir / "pdfs"
+        pdf_root = Path(destino_dir)
         temp_root = pdf_root / ".tmp"
         pdf_root.mkdir(parents=True, exist_ok=True)
         temp_root.mkdir(parents=True, exist_ok=True)

@@ -6,3 +6,5 @@ CATALOGO_REGIONAIS_CIRCUITOS = [
     {"regional": "Poa", "circuitos": [("ALEX PETRASOLI", "ASP"), ("AMAZONAS", "AMZ"), ("CASA BRANCA", "CBR"), ("COLORADO", "COL"), ("DONA BENTA", "DBE"), ("FERRAZ DE VASCONCELOS", "FER"), ("ITAQUAQUECETUBA", "ITQ"), ("PARQUE DOURADO", "PDO"), ("PEDREIRAS", "PED"), ("POA", "POA"), ("SUZANO", "SUZ"), ("VILA SANTA MARGARIDA", "VSM")]},
     {"regional": "SÃ£o JosÃ©", "circuitos": [("ALTOS DA VILA PAIVA", "AVP"), ("INDEPENDENCIA", "INP"), ("JACAREÃ", "JAC"), ("JAMBEIRO", "JAM"), ("JOÃƒO NOVAES", "JNO"), ("JOSÃ‰ CENTRO", "JCE"), ("PARQUE INDUSTRIAL", "PIL"), ("PARQUE TECNOLÃ“GICO", "PTE"), ("SANTA LUZIA", "SLZ"), ("SANTA PAULA", "SPA"), ("SJC", "SJC"), ("URBANOVA", "URB"), ("VALE DO SOL", "VSL")]},
 ]
+
+
