@@ -12,3 +12,5 @@ db_config.json
 
 .DS_Store
 Thumbs.db
+
+app_data/

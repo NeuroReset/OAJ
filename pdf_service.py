@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from openpyxl import load_workbook
+from openpyxl.worksheet.page import PageMargins
 
 try:
     import pythoncom
@@ -185,6 +186,24 @@ class PdfService:
             if not celula:
                 continue
             worksheet[celula] = self._obter_valor_campo_excel(campo, dados)
+
+        self._ajustar_layout_impressao_excel(worksheet)
+
+    def _ajustar_layout_impressao_excel(self, worksheet):
+        worksheet.print_area = "A1:J44"
+        worksheet.page_setup.orientation = "landscape"
+        worksheet.page_setup.paperSize = worksheet.PAPERSIZE_A4
+        worksheet.page_setup.fitToWidth = 1
+        worksheet.page_setup.fitToHeight = 1
+        worksheet.sheet_properties.pageSetUpPr.fitToPage = True
+        worksheet.page_margins = PageMargins(
+            left=0.2,
+            right=0.2,
+            top=0.25,
+            bottom=0.25,
+            header=0.1,
+            footer=0.1,
+        )
 
     def _obter_valor_campo_excel(self, campo, dados):
         if campo == "Religador":

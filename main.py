@@ -1,3 +1,4 @@
+import shutil
 import unicodedata
 from datetime import datetime
 from pathlib import Path
@@ -7,7 +8,8 @@ import webview
 from sqlalchemy import text
 
 from catalogo import CATALOGO_REGIONAIS_CIRCUITOS
-from db import get_conn
+import draft_manager
+from db import get_conn, load_config
 from pdf_service import ExcelTemplateConfig, PdfService
 
 TABELA_HISTORICO = "dbo.tbl_oaj"
@@ -105,9 +107,34 @@ class Api:
             obter_nome_circuito_pdf=self._obter_nome_circuito_pdf,
             excel_template=ExcelTemplateConfig(template_path=BASE_DIR / "template.xlsx"),
         )
+        draft_manager.insert_db = self._insert_db
+        draft_manager.generate_pdf = self._generate_pdf
+        draft_manager.upload_sharepoint = self._upload_sharepoint
 
     def _get_conn(self):
         return get_conn()
+
+    def _get_matricula_session(self):
+        session = draft_manager.load_session()
+        return str(session.get("matricula", "")).strip()
+
+    def _get_equipment_id(self, dados):
+        equipment_id = self._valor_texto(dados, "Numero", "") or self._valor_texto(
+            dados, "Religador", ""
+        )
+        equipment_id = str(equipment_id).strip()
+        if not equipment_id:
+            raise ValueError("Número do equipamento é obrigatório para SAVE/PUBLISH.")
+        return equipment_id
+
+    def _prepare_dados_salvar(self, dados):
+        dados = dados or {}
+        regional_inferida = self._obter_regional_pdf(dados)
+        if regional_inferida:
+            dados["RegionalDetectada"] = regional_inferida
+            if not self._valor_texto(dados, "Regional", ""):
+                dados["Regional"] = regional_inferida
+        return dados
 
     def _slug_consulta(self, *partes):
         valores = []
@@ -1042,7 +1069,133 @@ class Api:
     def _gerar_pdf(self, dados):
         return self._pdf_service.gerar_pdf_navegador(dados)
 
-    def salvar(self, dados):
+    def _insert_db(self, dados):
+        dados = self._prepare_dados_salvar(dict(dados or {}))
+        mensagem_banco = "Salvo com sucesso"
+        with self._get_conn() as conn:
+            colunas_tabela = self._obter_colunas_tabela(conn)
+            dados_salvar = {
+                coluna: valor for coluna, valor in dados.items() if coluna in colunas_tabela
+            }
+
+            if not dados_salvar:
+                raise ValueError(
+                    "Erro ao salvar: nenhum campo compatível com a tabela foi enviado."
+                )
+
+            if self._atualizar_por_numero_ajuste(conn, colunas_tabela, dados_salvar):
+                conn.commit()
+                mensagem_banco = "Registro atualizado com sucesso"
+            else:
+                if "NumeroAjuste" in colunas_tabela:
+                    numero_ajuste = self._normalizar_numero_ajuste(
+                        dados_salvar.get("NumeroAjuste")
+                    )
+                    if not numero_ajuste:
+                        dados_salvar["NumeroAjuste"] = self._obter_proximo_numero_ajuste(
+                            conn, colunas_tabela, dados_salvar
+                        )
+
+                colunas = ", ".join(f"[{coluna}]" for coluna in dados_salvar.keys())
+                parametros = {
+                    f"valor_{indice}": valor
+                    for indice, valor in enumerate(dados_salvar.values())
+                }
+                placeholders = ", ".join(
+                    f":valor_{indice}" for indice, _ in enumerate(dados_salvar)
+                )
+
+                sql = f"""
+                INSERT INTO {TABELA_HISTORICO} ({colunas})
+                VALUES ({placeholders})
+                """
+
+                conn.execute(text(sql), parametros)
+                conn.commit()
+
+        return {
+            "mensagem": mensagem_banco,
+            "dados": {**dados, **dados_salvar},
+        }
+
+    def _generate_pdf(self, dados):
+        return self.gerar_pdf_excel(self._prepare_dados_salvar(dict(dados or {})))
+
+    def _upload_sharepoint(self, path):
+        config = load_config()
+        sharepoint_root = str(config.get("sharepoint_root", "")).strip()
+        if not sharepoint_root:
+            raise ValueError("sharepoint_root não configurado em db_config.json.")
+
+        origem = Path(path)
+        if not origem.exists():
+            raise FileNotFoundError(f"Arquivo PDF não encontrado: {origem}")
+
+        destino_dir = Path(sharepoint_root)
+        destino_dir.mkdir(parents=True, exist_ok=True)
+        destino = destino_dir / origem.name
+        shutil.copy2(origem, destino)
+        return str(destino)
+
+    def get_session(self):
+        try:
+            session = draft_manager.load_session()
+            return {"status": "ok", "matricula": session.get("matricula", "")}
+        except FileNotFoundError:
+            return {"status": "empty", "matricula": ""}
+        except Exception as e:
+            return {"status": "erro", "mensagem": str(e), "matricula": ""}
+
+    def set_session(self, matricula):
+        try:
+            session = draft_manager.save_session(matricula)
+            return {
+                "status": "ok",
+                "mensagem": "Sessão salva com sucesso.",
+                "matricula": session.get("matricula", ""),
+            }
+        except Exception as e:
+            return {"status": "erro", "mensagem": f"Erro ao salvar sessão: {str(e)}"}
+
+    def list_drafts(self):
+        try:
+            matricula = self._get_matricula_session()
+            drafts = draft_manager.list_drafts(matricula)
+            return {"status": "ok", "matricula": matricula, "drafts": drafts}
+        except Exception as e:
+            return {"status": "erro", "mensagem": f"Erro ao listar drafts: {str(e)}"}
+
+    def get_draft(self, equipment_id):
+        try:
+            matricula = self._get_matricula_session()
+            draft = draft_manager.load_draft(matricula, equipment_id)
+            return {"status": "ok", "matricula": matricula, "draft": draft}
+        except Exception as e:
+            return {"status": "erro", "mensagem": f"Erro ao carregar draft: {str(e)}"}
+
+    def delete_draft(self, equipment_id):
+        try:
+            matricula = self._get_matricula_session()
+            lock_info = draft_manager.check_lock(equipment_id)
+            lock_owner = str(lock_info.get("matricula", "")).strip()
+            if lock_info.get("locked") and lock_owner not in ("", matricula):
+                return {
+                    "status": "erro",
+                    "mensagem": f"Lock pertence a outro usuÃ¡rio: {lock_owner}.",
+                }
+
+            removido = draft_manager.delete_draft(matricula, equipment_id)
+            if lock_owner == matricula:
+                draft_manager.release_lock(equipment_id)
+
+            if not removido:
+                return {"status": "erro", "mensagem": "Draft nÃ£o encontrado."}
+
+            return {"status": "ok", "mensagem": "Draft removido com sucesso."}
+        except Exception as e:
+            return {"status": "erro", "mensagem": f"Erro ao remover draft: {str(e)}"}
+
+    def salvar_legacy(self, dados):
         try:
             dados = dados or {}
             regional_inferida = self._obter_regional_pdf(dados)
@@ -1113,6 +1266,56 @@ class Api:
 
         except Exception as e:
             return {"status": "erro", "mensagem": f"Erro ao salvar: {str(e)}"}
+
+    def salvar(self, dados):
+        try:
+            matricula = self._get_matricula_session()
+            dados = self._prepare_dados_salvar(dict(dados or {}))
+            equipment_id = self._get_equipment_id(dados)
+
+            if not draft_manager.acquire_lock(matricula, equipment_id):
+                lock_info = draft_manager.check_lock(equipment_id)
+                lock_owner = str(lock_info.get("matricula", "")).strip()
+                if lock_owner and lock_owner != matricula:
+                    return {
+                        "status": "erro",
+                        "mensagem": f"Equipamento bloqueado por outro usuário: {lock_owner}.",
+                    }
+                return {
+                    "status": "erro",
+                    "mensagem": "Não foi possível adquirir lock para este equipamento.",
+                }
+
+            draft_manager.save_draft(matricula, equipment_id, dados)
+            return {
+                "status": "ok",
+                "mensagem": "Draft salvo localmente com sucesso.",
+                "equipment_id": equipment_id,
+            }
+        except Exception as e:
+            return {"status": "erro", "mensagem": f"Erro ao salvar: {str(e)}"}
+
+    def publicar(self, dados):
+        try:
+            matricula = self._get_matricula_session()
+            equipment_id = self._get_equipment_id(dados or {})
+            resultado = draft_manager.publish_document(matricula, equipment_id)
+            caminho_pdf = str(resultado.get("pdf_path", "")).strip()
+            sharepoint_path = str(resultado.get("upload_result", "")).strip()
+            mensagem = "Publicado com sucesso."
+            if sharepoint_path:
+                mensagem = (
+                    f"{mensagem} PDF enviado para SharePoint em: {sharepoint_path}"
+                )
+            return {
+                "status": "ok",
+                "mensagem": mensagem,
+                "caminho_pdf": caminho_pdf,
+                "sharepoint_path": sharepoint_path,
+                "arquivos_pdf": [caminho_pdf] if caminho_pdf else [],
+            }
+        except Exception as e:
+            return {"status": "erro", "mensagem": f"Erro ao publicar: {str(e)}"}
 
     def deletar_historico(self, registros):
         try:

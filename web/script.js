@@ -67,6 +67,7 @@ let historicoTotalPaginas = 0;
 let historicoTotalRegistros = 0;
 let historicoTamanhoPagina = 100;
 const HISTORICO_FILTROS_STORAGE_KEY = "oaj.historico.filtros";
+const SESSION_MATRICULA_STORAGE_KEY = "oaj.session.matricula";
 const HISTORICO_FILTROS_PADRAO = {
     numero: "",
     circuito: "",
@@ -86,6 +87,132 @@ let consultaBuscaEquipamento = "";
 let consultaBuscaRegistro = "";
 let consultaEquipamentos = [];
 let consultaCircuitosDisponiveisBanco = [];
+let draftsSalvos = [];
+const OBSERVACOES_FIXAS = [
+    "Single Shot: Ativo conforme os ajustes parametrizados na operação 01.",
+    "Linha Viva: Parametrizar para fase e neutro, curva 101, multiplicador de tempo em 0,01.",
+];
+const CAMPOS_AJUSTES = [
+    "Pickup_50P",
+    "Tempo_Minimo_50P",
+    "Pickup_51P",
+    "Curva_Fase",
+    "TimeDial_Fase",
+    "Curva_Rapida_Fase",
+    "TimeDial_CR",
+    "PartidaCR",
+    "Pickup_50N",
+    "Tempo_Minimo_50N",
+    "Pickup_51N",
+    "Curva_Neutro",
+    "TimeDial_Neutro",
+    "CurvaRapidaNeutro",
+    "Time_Dial_CR",
+    "Partida_da_CR",
+    "Trip",
+    "Temporizacao",
+    "Operacoes",
+    "Tempo_Morto",
+    "Operacao_1",
+    "Operacao_2",
+    "Operacao_3",
+    "Operacao_4",
+    "Tempo_Morto_Adicional",
+    "Reset_Time",
+    "HCL",
+    "Maximum_Time",
+    "Inrush",
+    "Sequence_Control",
+];
+
+function obterMatriculaPersistida() {
+    return String(window.localStorage?.getItem(SESSION_MATRICULA_STORAGE_KEY) || "").trim();
+}
+
+function atualizarMatriculaAtiva(matricula) {
+    const matriculaAtual = String(matricula || "").trim() || "-";
+    const header = document.getElementById("session-matricula-display");
+    const drafts = document.getElementById("drafts-session-matricula");
+    if (header) {
+        header.textContent = matriculaAtual;
+    }
+    if (drafts) {
+        drafts.textContent = matriculaAtual;
+    }
+}
+
+async function sincronizarSessaoAtiva() {
+    try {
+        const sessaoAtual = await window.pywebview.api.get_session();
+        if (sessaoAtual?.status === "ok" && String(sessaoAtual?.matricula || "").trim()) {
+            const matriculaAtual = String(sessaoAtual.matricula).trim();
+            window.localStorage?.setItem(SESSION_MATRICULA_STORAGE_KEY, matriculaAtual);
+            atualizarMatriculaAtiva(matriculaAtual);
+            return matriculaAtual;
+        }
+    } catch (erro) {
+        console.warn("Falha ao sincronizar sessão ativa.", erro);
+    }
+
+    atualizarMatriculaAtiva(obterMatriculaPersistida());
+    return "";
+}
+
+async function garantirSessao() {
+    const sessaoAtual = await window.pywebview.api.get_session();
+    if (sessaoAtual?.status === "ok" && String(sessaoAtual?.matricula || "").trim()) {
+        const matriculaAtual = String(sessaoAtual.matricula).trim();
+        window.localStorage?.setItem(SESSION_MATRICULA_STORAGE_KEY, matriculaAtual);
+        atualizarMatriculaAtiva(matriculaAtual);
+        return matriculaAtual;
+    }
+
+    const matriculaInicial = obterMatriculaPersistida();
+    const matriculaInformada = window.prompt(
+        "Informe sua matrícula para habilitar SAVE e PUBLISH:",
+        matriculaInicial,
+    );
+    const matricula = String(matriculaInformada || "").trim();
+
+    if (!matricula) {
+        throw new Error("Matrícula não informada.");
+    }
+
+    const resposta = await window.pywebview.api.set_session(matricula);
+    if (resposta?.status === "erro") {
+        throw new Error(resposta?.mensagem || "Falha ao salvar sessão.");
+    }
+
+    window.localStorage?.setItem(SESSION_MATRICULA_STORAGE_KEY, matricula);
+    atualizarMatriculaAtiva(matricula);
+    return matricula;
+}
+
+async function trocarMatricula() {
+    const matriculaAtual = obterMatriculaPersistida();
+    const matriculaInformada = window.prompt("Informe a nova matrícula:", matriculaAtual);
+    const matricula = String(matriculaInformada || "").trim();
+    if (!matricula) {
+        return;
+    }
+
+    const resposta = await window.pywebview.api.set_session(matricula);
+    if (resposta?.status === "erro") {
+        alert(resposta?.mensagem || "Falha ao trocar matrícula.");
+        return;
+    }
+
+    window.localStorage?.setItem(SESSION_MATRICULA_STORAGE_KEY, matricula);
+    atualizarMatriculaAtiva(matricula);
+
+    if (!document.querySelector('[data-screen="salvos"]')?.classList.contains("hidden")) {
+        await carregarDraftsSalvos();
+    }
+}
+
+function obterEquipmentIdAtual() {
+    return valorCampo("header-numero");
+}
 
 function carregarFiltrosHistoricoPersistidos() {
     try {
@@ -211,8 +338,110 @@ function alternarTela(aba) {
         carregarHistorico();
     }
 
+    if (aba === "salvos") {
+        carregarDraftsSalvos();
+    }
+
     if (aba === "consulta") {
         inicializarConsulta();
+    }
+}
+
+function obterStatusLockDraft(draft) {
+    const lock = draft?.lock || {};
+    if (!lock?.locked) {
+        return { texto: "Sem lock ativo", classe: "bg-slate-100 text-slate-600" };
+    }
+
+    const matriculaAtual = obterMatriculaPersistida();
+    if (String(lock.matricula || "").trim() === matriculaAtual) {
+        return { texto: "Lock seu", classe: "bg-emerald-100 text-emerald-700" };
+    }
+
+    return {
+        texto: `Lock de ${lock.matricula || "-"}`,
+        classe: "bg-amber-100 text-amber-700",
+    };
+}
+
+function renderizarDraftsSalvos() {
+    const lista = document.getElementById("drafts-lista");
+    const vazio = document.getElementById("drafts-vazio");
+    const resumo = document.getElementById("drafts-resumo");
+
+    if (!lista || !vazio || !resumo) {
+        return;
+    }
+
+    resumo.textContent = `${draftsSalvos.length} draft${draftsSalvos.length === 1 ? "" : "s"}`;
+
+    if (!draftsSalvos.length) {
+        lista.innerHTML = "";
+        vazio.classList.remove("hidden");
+        return;
+    }
+
+    vazio.classList.add("hidden");
+    lista.innerHTML = draftsSalvos.map((draft) => {
+        const statusLock = obterStatusLockDraft(draft);
+        return `
+            <article class="rounded-xl border border-outline-variant bg-white p-5 shadow-sm">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div class="space-y-3">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h3 class="text-xl font-black text-on-surface">${draft.numero || draft.equipment_id || "-"}</h3>
+                            <span class="rounded-full px-3 py-1 text-xs font-bold ${statusLock.classe}">${statusLock.texto}</span>
+                        </div>
+                        <div class="grid gap-2 text-sm text-on-surface-variant sm:grid-cols-2 xl:grid-cols-4">
+                            <div><span class="font-bold text-on-surface">Circuito:</span> ${draft.circuito || "-"}</div>
+                            <div><span class="font-bold text-on-surface">Regional:</span> ${draft.regional || "-"}</div>
+                            <div><span class="font-bold text-on-surface">Engenheiro:</span> ${draft.engenheiro || "-"}</div>
+                            <div><span class="font-bold text-on-surface">Salvo em:</span> ${formatarDataHoraDraft(draft.saved_at)}</div>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button class="rounded-lg border border-outline bg-white px-4 py-2 text-sm font-bold text-on-surface" onclick="abrirDraftSalvo('${draft.equipment_id}')" type="button">Abrir</button>
+                        <button class="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-on-primary" onclick="publicarDraftSalvo('${draft.equipment_id}')" type="button">Publicar</button>
+                        <button class="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700" onclick="excluirDraftSalvo('${draft.equipment_id}')" type="button">Excluir</button>
+                    </div>
+                </div>
+            </article>
+        `;
+    }).join("");
+}
+
+async function carregarDraftsSalvos() {
+    const lista = document.getElementById("drafts-lista");
+    const vazio = document.getElementById("drafts-vazio");
+    const resumo = document.getElementById("drafts-resumo");
+    if (lista) {
+        lista.innerHTML = `<div class="rounded-xl border border-outline-variant bg-white px-6 py-8 text-center text-sm text-on-surface-variant">Carregando drafts...</div>`;
+    }
+    if (vazio) {
+        vazio.classList.add("hidden");
+    }
+    if (resumo) {
+        resumo.textContent = "Carregando...";
+    }
+
+    try {
+        await garantirSessao();
+        const resposta = await window.pywebview.api.list_drafts();
+        if (resposta?.status === "erro") {
+            throw new Error(resposta?.mensagem || "Falha ao listar drafts.");
+        }
+
+        atualizarMatriculaAtiva(resposta?.matricula || obterMatriculaPersistida());
+        draftsSalvos = Array.isArray(resposta?.drafts) ? resposta.drafts : [];
+        renderizarDraftsSalvos();
+    } catch (erro) {
+        draftsSalvos = [];
+        if (lista) {
+            lista.innerHTML = `<div class="rounded-xl border border-red-200 bg-red-50 px-6 py-8 text-center text-sm text-red-700">${erro?.message || erro}</div>`;
+        }
+        if (resumo) {
+            resumo.textContent = "Erro ao carregar";
+        }
     }
 }
 
@@ -953,6 +1182,35 @@ function formatarDataBr(dataIso) {
     return `${dia}/${mes}/${ano}`;
 }
 
+function formatarDataHoraDraft(timestamp) {
+    const valor = Number(timestamp || 0);
+    if (!valor) {
+        return "-";
+    }
+
+    const data = new Date(valor * 1000);
+    if (Number.isNaN(data.getTime())) {
+        return "-";
+    }
+
+    return data.toLocaleString("pt-BR");
+}
+
+function dataBrParaIso(dataBr) {
+    const valor = String(dataBr || "").trim();
+    const partes = valor.split("/");
+    if (partes.length !== 3) {
+        return "";
+    }
+
+    const [dia, mes, ano] = partes;
+    if (!(dia && mes && ano)) {
+        return "";
+    }
+
+    return `${ano.padStart(4, "0")}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
+}
+
 function sincronizarDadosHeader() {
     const dataExecucao = document.getElementById("header-data-input");
 
@@ -981,6 +1239,21 @@ function extrairObservacoes() {
     return observacoesAdicionais
         ? [...observacoesFixas, observacoesAdicionais].join(" | ")
         : observacoesFixas.join(" | ");
+}
+
+function extrairObservacoesAdicionais(valor) {
+    const texto = String(valor || "").trim();
+    if (!texto) {
+        return "";
+    }
+
+    const partes = texto
+        .split("|")
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .filter((item) => !OBSERVACOES_FIXAS.includes(item));
+
+    return partes.join(" | ");
 }
 
 function sincronizarCamposParaClone(origem, clone) {
@@ -1257,6 +1530,82 @@ async function capturarImagemPdfFront() {
     }
 }
 
+function preencherFormularioComDraft(dados) {
+    const payload = dados || {};
+    document.getElementById("header-numero").value = String(payload.Numero || payload.Religador || "");
+    document.getElementById("header-circuito").value = String(payload.Circuito || "");
+    document.getElementById("header-marca").value = String(payload.Marca || "");
+    document.getElementById("header-autor").value = String(payload.Engenheiro || "");
+    document.getElementById("header-tensao").value = String(payload.TensaoPdf || payload.Tensao || "");
+    document.getElementById("header-data-input").value = dataBrParaIso(payload.Data_Emissao || "");
+    document.getElementById("observacoes").value = extrairObservacoesAdicionais(payload.Observacoes || "");
+
+    const ajustes = Array.from(document.querySelectorAll(".technical-table input"));
+    CAMPOS_AJUSTES.forEach((campo, indice) => {
+        if (!ajustes[indice]) {
+            return;
+        }
+        ajustes[indice].value = String(payload[campo] || "");
+    });
+
+    sincronizarDadosHeader();
+}
+
+async function abrirDraftSalvo(equipmentId) {
+    try {
+        await garantirSessao();
+        const resposta = await window.pywebview.api.get_draft(equipmentId);
+        if (resposta?.status === "erro") {
+            throw new Error(resposta?.mensagem || "Falha ao abrir draft.");
+        }
+
+        preencherFormularioComDraft(resposta?.draft?.dados || {});
+        alternarTela("inicio");
+    } catch (erro) {
+        alert(erro?.message || "Falha ao abrir draft.");
+    }
+}
+
+async function publicarDraftSalvo(equipmentId) {
+    try {
+        await garantirSessao();
+        const resposta = await window.pywebview.api.publicar({ Numero: equipmentId });
+        if (resposta?.status === "erro") {
+            throw new Error(resposta?.mensagem || "Falha ao publicar draft.");
+        }
+
+        const arquivos = Array.isArray(resposta?.arquivos_pdf) ? resposta.arquivos_pdf : [];
+        const mensagemArquivos = arquivos.length ? `\nPDF salvo em:\n${arquivos.join("\n")}` : "";
+        const mensagemSharepoint = resposta?.sharepoint_path
+            ? `\nSharePoint:\n${resposta.sharepoint_path}`
+            : "";
+        alert(`${resposta?.mensagem || "Publicado com sucesso."}${mensagemArquivos}${mensagemSharepoint}`);
+        await carregarDraftsSalvos();
+    } catch (erro) {
+        alert(erro?.message || "Falha ao publicar draft.");
+    }
+}
+
+async function excluirDraftSalvo(equipmentId) {
+    const confirmar = window.confirm(`Deseja excluir o draft do equipamento ${equipmentId}?`);
+    if (!confirmar) {
+        return;
+    }
+
+    try {
+        await garantirSessao();
+        const resposta = await window.pywebview.api.delete_draft(equipmentId);
+        if (resposta?.status === "erro") {
+            throw new Error(resposta?.mensagem || "Falha ao excluir draft.");
+        }
+
+        alert(resposta?.mensagem || "Draft removido com sucesso.");
+        await carregarDraftsSalvos();
+    } catch (erro) {
+        alert(erro?.message || "Falha ao excluir draft.");
+    }
+}
+
 function montarRegistroOrdenado() {
     const dataEmissao = extrairDataEmissao();
     const engenheiro = valorCampo("header-autor");
@@ -1320,16 +1669,51 @@ function montarRegistroOrdenado() {
 }
 
 async function salvar() {
-    const dados = montarRegistroOrdenado();
-    const res = await window.pywebview.api.salvar(dados);
-    if (res?.status === "erro") {
-        alert(res?.mensagem || "Falha ao salvar.");
-        return;
-    }
+    try {
+        const dados = montarRegistroOrdenado();
+        await garantirSessao();
+        const res = await window.pywebview.api.salvar(dados);
+        if (res?.status === "erro") {
+            alert(res?.mensagem || "Falha ao salvar.");
+            return;
+        }
 
-    const arquivos = Array.isArray(res?.arquivos_pdf) ? res.arquivos_pdf : [];
-    const mensagemArquivos = arquivos.length ? `\nPDF salvo em:\n${arquivos.join("\n")}` : "";
-    alert(`${res?.mensagem || "Salvo com sucesso"}${mensagemArquivos}`);
+        alert(res?.mensagem || "Draft salvo com sucesso.");
+        if (!document.querySelector('[data-screen="salvos"]')?.classList.contains("hidden")) {
+            await carregarDraftsSalvos();
+        }
+    } catch (erro) {
+        alert(erro?.message || "Falha ao preparar sessão para salvar.");
+    }
+}
+
+async function publicar() {
+    try {
+        const equipmentId = obterEquipmentIdAtual();
+        if (!equipmentId) {
+            alert("Informe o número do equipamento antes de publicar.");
+            return;
+        }
+
+        await garantirSessao();
+        const res = await window.pywebview.api.publicar({ Numero: equipmentId });
+        if (res?.status === "erro") {
+            alert(res?.mensagem || "Falha ao publicar.");
+            return;
+        }
+
+        const arquivos = Array.isArray(res?.arquivos_pdf) ? res.arquivos_pdf : [];
+        const mensagemArquivos = arquivos.length ? `\nPDF salvo em:\n${arquivos.join("\n")}` : "";
+        const mensagemSharepoint = res?.sharepoint_path
+            ? `\nSharePoint:\n${res.sharepoint_path}`
+            : "";
+        alert(`${res?.mensagem || "Publicado com sucesso."}${mensagemArquivos}${mensagemSharepoint}`);
+        if (!document.querySelector('[data-screen="salvos"]')?.classList.contains("hidden")) {
+            await carregarDraftsSalvos();
+        }
+    } catch (erro) {
+        alert(erro?.message || "Falha ao preparar sessão para publicar.");
+    }
 }
 
 async function gerarPdfTeste() {
@@ -1346,6 +1730,7 @@ async function gerarPdfTeste() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+    sincronizarSessaoAtiva();
     historicoFiltros = carregarFiltrosHistoricoPersistidos();
     aplicarFiltrosHistoricoNaTela();
     renderizarCabecalhoHistorico(HEADER_ORDEM_AJUSTE);

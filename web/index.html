@@ -173,12 +173,20 @@
                 <button class="tab-trigger rounded-lg px-3 py-2 text-sm font-label font-bold uppercase tracking-tight text-primary bg-red-50" data-tab="inicio" type="button">
                     Início
                 </button>
+                <button class="tab-trigger rounded-lg px-3 py-2 text-sm font-label uppercase tracking-tight text-slate-500" data-tab="salvos" type="button">
+                    Salvos
+                </button>
                 <button class="tab-trigger rounded-lg px-3 py-2 text-sm font-label uppercase tracking-tight text-slate-500" data-tab="historico" type="button">
                     Histórico
                 </button>
                 <button class="tab-trigger rounded-lg px-3 py-2 text-sm font-label uppercase tracking-tight text-slate-500" data-tab="consulta" type="button">
                     Consulta
                 </button>
+            </div>
+
+            <div class="hidden items-center gap-2 rounded-lg border border-outline bg-white px-3 py-2 text-xs font-semibold text-on-surface md:flex">
+                <span class="uppercase tracking-[0.16em] text-on-surface-variant">Matrícula</span>
+                <span id="session-matricula-display">-</span>
             </div>
 
             <button class="flex items-center gap-2 rounded-lg border border-outline bg-white px-4 py-2 text-sm font-bold text-on-surface duration-200 active:scale-95" onclick="gerarPdfTeste()" type="button">
@@ -191,7 +199,7 @@
                 </span>
                 PDF Teste
             </button>
-            <button class="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-on-primary duration-200 active:scale-95" onclick="salvar()" type="button">
+            <button class="flex items-center gap-2 rounded-lg border border-outline bg-white px-4 py-2 text-sm font-bold text-on-surface duration-200 active:scale-95" onclick="salvar()" type="button">
                 <span aria-hidden="true" class="icon icon-sm">
                     <svg fill="none" viewBox="0 0 24 24">
                         <path d="M5 4h11l3 3v13H5z" stroke-linejoin="round" stroke-width="2"></path>
@@ -199,6 +207,16 @@
                     </svg>
                 </span>
                 Salvar
+            </button>
+            <button class="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-on-primary duration-200 active:scale-95" onclick="publicar()" type="button">
+                <span aria-hidden="true" class="icon icon-sm">
+                    <svg fill="none" viewBox="0 0 24 24">
+                        <path d="M12 4v10" stroke-linecap="round" stroke-width="2"></path>
+                        <path d="M8 8l4-4 4 4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+                        <path d="M5 20h14" stroke-linecap="round" stroke-width="2"></path>
+                    </svg>
+                </span>
+                Publish
             </button>
         </div>
     </header>
@@ -381,8 +399,35 @@
                     Gerar PDF Teste
                 </button>
                 <button class="rounded-lg bg-gradient-to-r from-primary to-primary-container px-12 py-4 text-lg font-bold uppercase tracking-widest text-on-primary shadow-xl transition-all duration-200 hover:shadow-primary/20 active:scale-95" onclick="salvar()" type="button">
-                    Finalizar e Salvar Ajustes
+                    Salvar Draft
                 </button>
+            </div>
+        </section>
+
+        <section class="hidden" data-screen="salvos">
+            <div class="rounded-xl bg-surface-container-low p-6 shadow-sm">
+                <div class="mb-6 flex flex-col gap-4 rounded-xl border border-outline-variant bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <p class="font-label text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant">Drafts compartilhados</p>
+                        <h2 class="mt-2 text-2xl font-black text-on-surface">Salvos locais do usuário</h2>
+                        <p class="mt-2 text-sm text-on-surface-variant">Visualize, abra, publique ou exclua os drafts da sua matrícula na pasta de rede.</p>
+                    </div>
+                    <div class="flex items-center gap-3 rounded-xl border border-outline-variant bg-surface px-4 py-3">
+                        <div>
+                            <div class="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">Sessão ativa</div>
+                            <div class="mt-1 text-base font-black text-on-surface" id="drafts-session-matricula">-</div>
+                        </div>
+                        <button class="rounded-lg border border-outline bg-white px-3 py-2 text-sm font-bold text-on-surface" onclick="trocarMatricula()" type="button">Trocar</button>
+                    </div>
+                </div>
+
+                <div class="mb-4 flex items-center justify-between gap-3">
+                    <div class="text-sm font-semibold text-on-surface-variant" id="drafts-resumo">0 drafts</div>
+                    <button class="rounded-lg border border-outline bg-white px-4 py-2 text-sm font-bold text-on-surface shadow-sm" onclick="carregarDraftsSalvos()" type="button">Atualizar</button>
+                </div>
+
+                <div class="grid gap-4" id="drafts-lista"></div>
+                <div class="hidden rounded-xl border border-dashed border-outline-variant bg-white px-6 py-12 text-center text-sm text-on-surface-variant" id="drafts-vazio">Nenhum draft salvo para a matrícula atual.</div>
             </div>
         </section>
 
@@ -632,6 +677,15 @@
                 </svg>
             </span>
             <span class="font-label text-[10px] font-medium uppercase tracking-wider">Início</span>
+        </button>
+        <button class="tab-trigger flex flex-col items-center justify-center px-3 py-1 text-slate-500" data-tab="salvos" type="button">
+            <span aria-hidden="true" class="icon icon-md">
+                <svg fill="none" viewBox="0 0 24 24">
+                    <path d="M5 5h14v14H5z" stroke-linejoin="round" stroke-width="2"></path>
+                    <path d="M8 9h8M8 13h8M8 17h5" stroke-linecap="round" stroke-width="2"></path>
+                </svg>
+            </span>
+            <span class="font-label text-[10px] font-medium uppercase tracking-wider">Salvos</span>
         </button>
         <button class="tab-trigger flex flex-col items-center justify-center px-3 py-1 text-slate-500" data-tab="historico" type="button">
             <span aria-hidden="true" class="icon icon-md">
