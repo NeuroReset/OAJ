@@ -2,5 +2,7 @@
   "server": "",
   "database": "",
   "user": "",
-  "password": ""
+  "password": "",
+  "pdf_root": "",
+  "sharepoint_root": ""
 }

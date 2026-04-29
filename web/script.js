@@ -42,7 +42,7 @@ const HEADER_ORDEM_AJUSTE = [
 ];
 
 const CATALOGO_CONSULTA = [
-    { nome: "Guará", circuitos: [["Aparecida", "APA"], ["Araretama", "ARA"], ["Barreiro", "BRR"], ["Caçapava", "CAC"], ["Cachoeira Paulista", "CPA"], ["Cruzeiro", "CRU"], ["Germana", "GER"], ["Gará", "GUR"], ["Lorena", "LOR"], ["Mantiqueira", "MTQ"], ["Pinda", "PID"], ["Roseira", "ROS"], ["S. Gonçalo", "SGO"], ["Taubaté", "TAU"]] },
+    { nome: "Guará", circuitos: [["Aparecida", "APA"], ["Araretama", "ARA"], ["Barreiro", "BRR"], ["Caçapava", "CAC"], ["Cachoeira Paulista", "CPA"], ["Cruzeiro", "CRU"], ["Germana", "GER"], ["Guará", "GUR"], ["Lorena", "LOR"], ["Mantiqueira", "MTQ"], ["Pinda", "PID"], ["Roseira", "ROS"], ["S. Gonçalo", "SGO"], ["Taubaté", "TAU"]] },
     { nome: "Guarulhos", circuitos: [["AGUA CHATA", "ACT"], ["BELA VISTA", "BVI"], ["BONSUCESSO", "BON"], ["CUMBICA", "CMB"], ["DUTRA", "DUT"], ["FORTALEZA", "FOR"], ["GOPOUVA", "GOP"], ["GUARULHOS", "GUL"], ["IPORANGA", "IPO"], ["JARDIM", "JAR"], ["KIDA MACEDO", "KMA"], ["PIMENTAS", "PME"], ["SAO LUIZ", "SLU"], ["SATÉLITE", "SAT"], ["SKOL", "SKO"], ["VALTER JOSE DOS SANTOS", "VJS"], ["VILA GALVÃO", "VGA"], ["VILA HERMINIA", "VHE"]] },
     { nome: "Litoral Norte", circuitos: [["BOISSUCANGA", "BOI"], ["CARAGUATATUBA", "CAR"], ["JUQUEHY", "JUQ"], ["MARESIAS", "MRE"], ["MASSAGUAÇU", "MAS"], ["OLARIA", "OLR"], ["PORTO NOVO", "PNO"], ["SÃO SEBASTIÃO", "SSC"], ["UNA", "UNA"]] },
     { nome: "Mogi", circuitos: [["BIRITIBA", "BIR"], ["BRAS CUBAS", "BCU"], ["CESAR DE SOUZA", "CSO"], ["COLORADO", "COL"], ["GUARAREMA", "GUE"], ["MANOEL AREIAS PEREIRA", "MAP"], ["MIRIM", "MRM"], ["MOGI CIDADE", "MCI"], ["NAGAO", "NAG"], ["PARATEI", "PRT"], ["SALESOPOLIS", "SAL"], ["SANTA BRANCA", "SBR"], ["TIETE", "TIE"]] },
@@ -81,6 +81,7 @@ let consultaRegionalId = "";
 let consultaCircuitoId = "";
 let consultaCircuitoFinal = "";
 let consultaEquipamentoId = "";
+let catalogoConsulta = [];
 let consultaBuscaEquipamento = "";
 let consultaBuscaRegistro = "";
 let consultaEquipamentos = [];
@@ -250,6 +251,25 @@ function obterAbreviacoesConsultaDisponiveis(regional) {
         return [];
     }
 
+    const circuitosCatalogo = (circuitoSelecionado.circuitos_finais || [])
+        .filter((valor) => String(valor || "").trim());
+    if (circuitosCatalogo.length) {
+        const circuitosBanco = consultaCircuitosDisponiveisBanco || [];
+        const normalizadosBanco = new Set(
+            circuitosBanco.map((valor) => normalizarTextoConsulta(valor))
+        );
+
+        const circuitosDisponiveis = !normalizadosBanco.size
+            ? circuitosCatalogo
+            : circuitosCatalogo.filter((valor) =>
+                normalizadosBanco.has(normalizarTextoConsulta(valor))
+            );
+
+        if (circuitosDisponiveis.length) {
+            return circuitosDisponiveis.map((valor) => ({ id: valor, nome: valor }));
+        }
+    }
+
     const prefixo = normalizarTextoConsulta(circuitoSelecionado.abreviacao);
     return (consultaCircuitosDisponiveisBanco || [])
         .filter((valor) => {
@@ -306,6 +326,34 @@ function circuitoCatalogoExisteNoBanco(circuitoCatalogo, circuitosBanco) {
         const valor = normalizarTextoConsulta(circuitoBanco);
         return valor === nome || valor === abreviacao || valor.includes(nome) || valor.includes(abreviacao);
     });
+}
+
+function encontrarRegionalPorCircuito(circuitoInformado) {
+    const circuitoNormalizado = normalizarTextoConsulta(circuitoInformado);
+    if (!circuitoNormalizado) {
+        return null;
+    }
+
+    for (const regional of catalogoConsulta) {
+        for (const circuito of regional.circuitos || []) {
+            const nome = normalizarTextoConsulta(circuito.nome);
+            const abreviacao = normalizarTextoConsulta(circuito.abreviacao);
+            if (
+                circuitoNormalizado === nome ||
+                circuitoNormalizado === abreviacao ||
+                circuitoNormalizado.startsWith(`${abreviacao} `) ||
+                circuitoNormalizado.startsWith(`${nome} `)
+            ) {
+                return {
+                    regional: regional.nome,
+                    circuito: circuito.nome,
+                    abreviacao: circuito.abreviacao,
+                };
+            }
+        }
+    }
+
+    return null;
 }
 
 function obterCircuitosConsultaDisponiveis(regional) {
@@ -481,14 +529,21 @@ function renderizarConsulta() {
 }
 
 async function carregarFluxoConsulta() {
+    const resposta = await window.pywebview.api.get_catalogo_consulta();
+    if (resposta?.status === "erro") {
+        throw new Error(resposta?.mensagem || "Falha ao carregar catÃ¡logo.");
+    }
+
+    catalogoConsulta = resposta?.regionais || [];
     consultaFluxo = {
-        regionais: CATALOGO_CONSULTA.map((regional) => ({
+        regionais: catalogoConsulta.map((regional) => ({
             id: regional.id,
             nome: regional.nome,
             circuitos: (regional.circuitos || []).map((circuito) => ({
                 id: circuito.id,
                 nome: circuito.nome,
                 abreviacao: circuito.abreviacao,
+                circuitos_finais: circuito.circuitos_finais || [],
             })),
         })),
         circuitos: [],
@@ -520,13 +575,18 @@ async function carregarCircuitosConsultaDoBanco() {
 }
 
 async function inicializarConsulta() {
-    if (!consultaFluxo.regionais.length) {
-        await carregarFluxoConsulta();
+    try {
+        if (!consultaFluxo.regionais.length) {
+            await carregarFluxoConsulta();
+        }
+        if (consultaRegionalId) {
+            await carregarCircuitosConsultaDoBanco();
+        }
+        renderizarConsulta();
+    } catch (erro) {
+        console.error(erro);
+        alert(`Falha ao carregar consulta: ${erro.message || erro}`);
     }
-    if (consultaRegionalId) {
-        await carregarCircuitosConsultaDoBanco();
-    }
-    renderizarConsulta();
 }
 
 async function carregarEquipamentosConsulta() {
@@ -923,16 +983,293 @@ function extrairObservacoes() {
         : observacoesFixas.join(" | ");
 }
 
+function sincronizarCamposParaClone(origem, clone) {
+    const camposOrigem = Array.from(origem.querySelectorAll("input, textarea, select"));
+    const camposClone = Array.from(clone.querySelectorAll("input, textarea, select"));
+
+    camposOrigem.forEach((campoOrigem, indice) => {
+        const campoClone = camposClone[indice];
+        if (!campoClone) {
+            return;
+        }
+
+        if (campoOrigem.tagName === "TEXTAREA") {
+            campoClone.textContent = campoOrigem.value || "";
+        } else if (campoOrigem.tagName === "SELECT") {
+            campoClone.value = campoOrigem.value;
+            Array.from(campoClone.options).forEach((option) => {
+                option.selected = option.value === campoOrigem.value;
+            });
+        } else {
+            campoClone.value = campoOrigem.value || "";
+            campoClone.setAttribute("value", campoOrigem.value || "");
+            if (campoOrigem.checked) {
+                campoClone.setAttribute("checked", "checked");
+            } else {
+                campoClone.removeAttribute("checked");
+            }
+        }
+
+        campoClone.setAttribute("readonly", "readonly");
+        campoClone.setAttribute("tabindex", "-1");
+    });
+}
+
+function criarContainerCaptura(inicioOriginal) {
+    const larguraBase = 1600;
+    const container = document.createElement("div");
+    container.style.position = "fixed";
+    container.style.left = "-100000px";
+    container.style.top = "0";
+    container.style.width = `${larguraBase}px`;
+    container.style.padding = "0";
+    container.style.margin = "0";
+    container.style.background = "#ffffff";
+    container.style.zIndex = "-1";
+    container.style.overflow = "hidden";
+
+    const main = document.createElement("main");
+    main.style.maxWidth = "none";
+    main.style.width = `${larguraBase}px`;
+    main.style.padding = "0";
+    main.style.margin = "0";
+    main.style.background = "#ffffff";
+
+    const inicioClone = inicioOriginal.cloneNode(true);
+    sincronizarCamposParaClone(inicioOriginal, inicioClone);
+    inicioClone.querySelectorAll("button, nav, [onclick], .tab-trigger").forEach((elemento) => {
+        elemento.remove();
+    });
+    inicioClone.style.margin = "0";
+    inicioClone.style.padding = "0";
+    inicioClone.style.width = "100%";
+    inicioClone.setAttribute("data-pdf-capture", "true");
+    inicioClone.querySelectorAll("*").forEach((elemento) => {
+        if (elemento instanceof HTMLElement) {
+            if (window.getComputedStyle(elemento).position === "fixed") {
+                elemento.remove();
+            }
+        }
+    });
+
+    const estilosPdf = document.createElement("style");
+    estilosPdf.textContent = `
+      [data-pdf-capture="true"] {
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      [data-pdf-capture="true"] .summary-grid {
+        margin-bottom: 10px !important;
+        padding: 8px 10px !important;
+        border-radius: 10px !important;
+      }
+
+      [data-pdf-capture="true"] .summary-meta {
+        margin-top: 8px !important;
+      }
+
+      [data-pdf-capture="true"] .grid {
+        gap: 6px !important;
+      }
+
+      [data-pdf-capture="true"] label,
+      [data-pdf-capture="true"] .font-label {
+        font-size: 11px !important;
+        font-weight: 700 !important;
+      }
+
+      [data-pdf-capture="true"] input,
+      [data-pdf-capture="true"] textarea,
+      [data-pdf-capture="true"] select {
+        min-height: 0 !important;
+        height: 26px !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        font-size: 14px !important;
+      }
+
+      [data-pdf-capture="true"] .technical-table {
+        font-size: 13px !important;
+      }
+
+      [data-pdf-capture="true"] .technical-table th,
+      [data-pdf-capture="true"] .technical-table td {
+        padding: 2px 6px !important;
+      }
+
+      [data-pdf-capture="true"] .technical-table input {
+        height: 20px !important;
+        line-height: 20px !important;
+        font-size: 13px !important;
+      }
+
+      [data-pdf-capture="true"] .technical-table th {
+        font-size: 12px !important;
+        font-weight: 800 !important;
+      }
+
+      [data-pdf-capture="true"] h2 {
+        font-size: 13px !important;
+      }
+
+      [data-pdf-capture="true"] .rounded-xl,
+      [data-pdf-capture="true"] .rounded-lg,
+      [data-pdf-capture="true"] .rounded-md {
+        border-radius: 8px !important;
+      }
+
+      [data-pdf-capture="true"] #observacoes {
+        min-height: 64px !important;
+        height: 64px !important;
+        font-size: 13px !important;
+      }
+
+      [data-pdf-capture="true"] .mt-8,
+      [data-pdf-capture="true"] .mt-10,
+      [data-pdf-capture="true"] .mt-12,
+      [data-pdf-capture="true"] .mt-14 {
+        margin-top: 8px !important;
+      }
+
+      [data-pdf-capture="true"] .mb-8,
+      [data-pdf-capture="true"] .mb-6,
+      [data-pdf-capture="true"] .mb-5,
+      [data-pdf-capture="true"] .mb-4 {
+        margin-bottom: 8px !important;
+      }
+
+      [data-pdf-capture="true"] h1,
+      [data-pdf-capture="true"] h2 {
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+      }
+
+      [data-pdf-capture="true"] p,
+      [data-pdf-capture="true"] span,
+      [data-pdf-capture="true"] div {
+        font-size: 13px !important;
+      }
+    `;
+    main.appendChild(estilosPdf);
+    main.appendChild(inicioClone);
+    container.appendChild(main);
+    document.body.appendChild(container);
+    return container;
+}
+
+function montarHtmlPdfFront() {
+    sincronizarDadosHeader();
+
+    const inicioOriginal = document.querySelector('[data-screen="inicio"]');
+    if (!inicioOriginal) {
+        return "";
+    }
+
+    const inicioClone = inicioOriginal.cloneNode(true);
+    sincronizarCamposParaClone(inicioOriginal, inicioClone);
+
+    const headHtml = Array.from(document.head.children)
+        .filter((elemento) => ["META", "TITLE", "STYLE", "LINK"].includes(elemento.tagName))
+        .map((elemento) => elemento.outerHTML)
+        .join("\n");
+
+    return `<!DOCTYPE html>
+<html class="${document.documentElement.className}" lang="pt-BR">
+<head>
+${headHtml}
+<style>
+  body {
+    min-height: auto !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  main {
+    max-width: none !important;
+    padding: 12px !important;
+    margin: 0 !important;
+  }
+
+  input,
+  textarea,
+  select {
+    pointer-events: none !important;
+    caret-color: transparent !important;
+    color: inherit !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  .summary-grid,
+  .technical-table,
+  .technical-table td,
+  .technical-table th {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+</style>
+</head>
+<body class="${document.body.className}">
+  <main>
+    ${inicioClone.outerHTML}
+  </main>
+</body>
+</html>`;
+}
+
+async function capturarImagemPdfFront() {
+    sincronizarDadosHeader();
+
+    if (typeof window.html2canvas !== "function") {
+        return "";
+    }
+
+    const inicioOriginal = document.querySelector('[data-screen="inicio"]');
+    if (!inicioOriginal) {
+        return "";
+    }
+
+    const container = criarContainerCaptura(inicioOriginal);
+    try {
+        const alvo = container.firstElementChild;
+        const canvas = await window.html2canvas(alvo, {
+            backgroundColor: "#ffffff",
+            scale: 3,
+            useCORS: true,
+            logging: false,
+            width: alvo.scrollWidth,
+            height: alvo.scrollHeight,
+            windowWidth: alvo.scrollWidth,
+            windowHeight: alvo.scrollHeight,
+        });
+        return canvas.toDataURL("image/png");
+    } catch (erro) {
+        console.error("Falha ao capturar screenshot para PDF.", erro);
+        return "";
+    } finally {
+        container.remove();
+    }
+}
+
 function montarRegistroOrdenado() {
     const dataEmissao = extrairDataEmissao();
     const engenheiro = valorCampo("header-autor");
+    const circuitoInformado = valorCampo("header-circuito");
+    const regionalDetectada = encontrarRegionalPorCircuito(circuitoInformado);
+    const tensao = valorCampo("header-tensao");
     const ajustes = Array.from(document.querySelectorAll(".technical-table input"));
 
     const valores = {
         ANO: extrairAno(dataEmissao),
         Numero: valorCampo("header-numero"),
-        Circuito: valorCampo("header-circuito"),
-        Regional: "",
+        Circuito: circuitoInformado,
+        Regional: regionalDetectada?.regional || "",
         Marca: valorCampo("header-marca"),
         Tipo: "",
         Data_Emissao: dataEmissao,
@@ -969,18 +1306,30 @@ function montarRegistroOrdenado() {
         Sequence_Control: ajustes[29]?.value?.trim() || "",
         Observacoes: extrairObservacoes(),
         NumeroAjuste: "",
+        RegionalDetectada: regionalDetectada?.regional || "",
+        TensaoPdf: tensao,
     };
 
     return HEADER_ORDEM_AJUSTE.reduce((registro, chave) => {
         registro[chave] = valores[chave] ?? "";
         return registro;
-    }, {});
+    }, {
+        RegionalDetectada: valores.RegionalDetectada,
+        TensaoPdf: valores.TensaoPdf,
+    });
 }
 
 async function salvar() {
     const dados = montarRegistroOrdenado();
     const res = await window.pywebview.api.salvar(dados);
-    alert(res);
+    if (res?.status === "erro") {
+        alert(res?.mensagem || "Falha ao salvar.");
+        return;
+    }
+
+    const arquivos = Array.isArray(res?.arquivos_pdf) ? res.arquivos_pdf : [];
+    const mensagemArquivos = arquivos.length ? `\nPDF salvo em:\n${arquivos.join("\n")}` : "";
+    alert(`${res?.mensagem || "Salvo com sucesso"}${mensagemArquivos}`);
 }
 
 document.addEventListener("DOMContentLoaded", () => {

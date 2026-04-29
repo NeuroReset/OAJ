@@ -147,8 +147,23 @@ Esse arquivo deve definir diretamente:
 - banco
 - usuário
 - senha
+- `pdf_root` opcional para a raiz local dos PDFs
+- `sharepoint_root` opcional para a pasta sincronizada do SharePoint
 
 O backend usa esses valores diretamente para montar a conexão com o SQL Server.
+
+Exemplo com destinos de PDF:
+
+```json
+{
+  "server": "BRAZRPROTAPP01",
+  "database": "edp-coi-sp",
+  "user": "admin-coi",
+  "password": "sua-senha",
+  "pdf_root": "C:/Users/seu.usuario/Documents/OAJ/pdfs",
+  "sharepoint_root": "C:/Users/seu.usuario/EDP/SharePoint/OAJ"
+}
+```
 
 ## Como Executar
 

@@ -2,3 +2,5 @@ pandas
 pyodbc
 pywebview
 SQLAlchemy
+openpyxl
+pywin32

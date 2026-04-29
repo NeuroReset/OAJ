@@ -1,3 +1,4 @@
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 
@@ -5,9 +6,13 @@ import pandas as pd
 import webview
 from sqlalchemy import text
 
+from catalogo import CATALOGO_REGIONAIS_CIRCUITOS
 from db import get_conn
+from pdf_service import ExcelTemplateConfig, PdfService
 
 TABELA_HISTORICO = "dbo.tbl_oaj"
+BASE_DIR = Path(__file__).resolve().parent
+CATALOGO_CONSULTA_CSV = BASE_DIR / "tblSistema.csv"
 
 
 class Api:
@@ -90,8 +95,129 @@ class Api:
         "Observacoes",
     }
 
+    def __init__(self):
+        self._catalogo_consulta_cache = []
+        self._catalogo_consulta_cache_mtime_ns = None
+        self.pdf_service = PdfService(
+            base_dir=BASE_DIR,
+            valor_texto=self._valor_texto,
+            obter_regional_pdf=self._obter_regional_pdf,
+            obter_nome_circuito_pdf=self._obter_nome_circuito_pdf,
+            excel_template=ExcelTemplateConfig(template_path=BASE_DIR / "template.xlsx"),
+        )
+
     def _get_conn(self):
         return get_conn()
+
+    def _slug_consulta(self, *partes):
+        valores = []
+        for parte in partes:
+            texto = self._normalizar_texto_busca(parte)
+            texto = "".join(
+                caractere if caractere.isalnum() else "-"
+                for caractere in texto
+            )
+            texto = "-".join(trecho for trecho in texto.split("-") if trecho)
+            if texto:
+                valores.append(texto)
+        return "::".join(valores)
+
+    def _ler_catalogo_consulta_csv(self):
+        if not CATALOGO_CONSULTA_CSV.exists():
+            return []
+
+        ultimo_erro = None
+        for encoding in ("utf-8-sig", "utf-8", "latin-1"):
+            try:
+                df = pd.read_csv(CATALOGO_CONSULTA_CSV, dtype=str, encoding=encoding)
+                break
+            except UnicodeDecodeError as erro:
+                ultimo_erro = erro
+        else:
+            raise ultimo_erro or UnicodeDecodeError("csv", b"", 0, 1, "Falha ao ler CSV")
+
+        df = df.fillna("")
+        regionais_map = {}
+
+        for registro in df.to_dict(orient="records"):
+            regional = self._valor_texto(registro, "Regional", "")
+            subestacao = self._valor_texto(registro, "Subestacao", "")
+            circuito_final = self._valor_texto(registro, "Circuito", "")
+            abreviacao = circuito_final.split("-", 1)[0].strip() or circuito_final
+
+            if not (regional and subestacao and circuito_final and abreviacao):
+                continue
+
+            regional_id = f"regional::{self._slug_consulta(regional)}"
+            circuito_id = f"circuito::{self._slug_consulta(regional, subestacao, abreviacao)}"
+
+            regional_item = regionais_map.setdefault(
+                regional_id,
+                {
+                    "id": regional_id,
+                    "nome": regional,
+                    "circuitos_map": {},
+                },
+            )
+
+            circuito_item = regional_item["circuitos_map"].setdefault(
+                circuito_id,
+                {
+                    "id": circuito_id,
+                    "nome": subestacao,
+                    "abreviacao": abreviacao,
+                    "circuitos_finais": [],
+                },
+            )
+
+            if circuito_final not in circuito_item["circuitos_finais"]:
+                circuito_item["circuitos_finais"].append(circuito_final)
+
+        regionais = []
+        for regional_item in sorted(
+            regionais_map.values(),
+            key=lambda item: self._normalizar_texto_busca(item["nome"]),
+        ):
+            circuitos = sorted(
+                regional_item["circuitos_map"].values(),
+                key=lambda item: self._normalizar_texto_busca(item["nome"]),
+            )
+            for circuito_item in circuitos:
+                circuito_item["circuitos_finais"].sort(
+                    key=self._normalizar_texto_busca
+                )
+
+            regionais.append(
+                {
+                    "id": regional_item["id"],
+                    "nome": regional_item["nome"],
+                    "circuitos": [
+                        {
+                            "id": circuito_item["id"],
+                            "nome": circuito_item["nome"],
+                            "abreviacao": circuito_item["abreviacao"],
+                            "circuitos_finais": circuito_item["circuitos_finais"],
+                        }
+                        for circuito_item in circuitos
+                    ],
+                }
+            )
+
+        return regionais
+
+    def _obter_catalogo_consulta(self):
+        if not CATALOGO_CONSULTA_CSV.exists():
+            self._catalogo_consulta_cache = []
+            self._catalogo_consulta_cache_mtime_ns = None
+            return []
+
+        mtime_ns = CATALOGO_CONSULTA_CSV.stat().st_mtime_ns
+        if self._catalogo_consulta_cache_mtime_ns == mtime_ns:
+            return self._catalogo_consulta_cache
+
+        self._catalogo_consulta_cache = self._ler_catalogo_consulta_csv()
+        self._catalogo_consulta_cache_mtime_ns = mtime_ns
+        return self._catalogo_consulta_cache
 
     def _obter_colunas_tabela(self, conn):
         result = conn.execute(text(f"SELECT TOP 0 * FROM {TABELA_HISTORICO}"))
@@ -100,6 +226,26 @@ class Api:
     def _colunas_chave_disponiveis(self, colunas):
         candidatas = ["ID", "Id", "id", "NumeroAjuste"]
         return [coluna for coluna in candidatas if coluna in colunas]
+
+    def _condicoes_identificacao_registro(self, colunas_tabela, registro):
+        colunas_identificacao = self._colunas_presentes(
+            colunas_tabela, ["Numero", "Circuito", "Regional", "Marca", "Tipo"]
+        )
+        condicoes = []
+        parametros = {}
+
+        for indice, coluna in enumerate(colunas_identificacao):
+            valor = self._valor_texto(registro, coluna, "")
+            if not valor:
+                continue
+
+            param_nome = f"ident_{indice}"
+            condicoes.append(
+                f"LTRIM(RTRIM(CAST([{coluna}] AS NVARCHAR(255)))) = :{param_nome}"
+            )
+            parametros[param_nome] = valor
+
+        return condicoes, parametros
 
     def _expressao_coluna_delete(self, coluna):
         if coluna in self.COLUNAS_TEXTO_LEGADO:
@@ -127,6 +273,16 @@ class Api:
                     f"{self._expressao_coluna_delete(coluna)} = :{param_nome}"
                 )
                 parametros[param_nome] = valor
+
+            condicoes_identificacao, parametros_identificacao = (
+                self._condicoes_identificacao_registro(colunas_tabela, registro)
+            )
+
+            # NumeroAjuste sozinho nao identifica a linha com seguranca.
+            # Quando ele existir, combinamos com os campos principais do equipamento.
+            if "NumeroAjuste" in colunas_chave and condicoes_identificacao:
+                condicoes.extend(condicoes_identificacao)
+                parametros.update(parametros_identificacao)
 
             if condicoes:
                 return condicoes, parametros
@@ -307,6 +463,83 @@ class Api:
             return fallback
         return str(valor).strip() or fallback
 
+    def _normalizar_texto_busca(self, valor):
+        texto = str(valor or "").strip().lower()
+        texto = unicodedata.normalize("NFD", texto)
+        return "".join(caractere for caractere in texto if unicodedata.category(caractere) != "Mn")
+
+    def _texto_comeca_com_chave_circuito(self, texto, chave):
+        if not texto or not chave or not texto.startswith(chave):
+            return False
+
+        if texto == chave:
+            return True
+
+        proximo = texto[len(chave)]
+        return not proximo.isalnum()
+
+    def _inferir_regional_por_circuito(self, circuito):
+        info = self._resolver_catalogo_circuito(circuito)
+        return info["regional"] if info else ""
+
+    def _resolver_catalogo_circuito(self, circuito):
+        circuito_normalizado = self._normalizar_texto_busca(circuito)
+        if not circuito_normalizado:
+            return None
+
+        for item in self._obter_catalogo_consulta():
+            for circuito_item in item.get("circuitos", []):
+                nome_circuito = circuito_item.get("nome", "")
+                abreviacao = circuito_item.get("abreviacao", "")
+                nome_normalizado = self._normalizar_texto_busca(nome_circuito)
+                abreviacao_normalizada = self._normalizar_texto_busca(abreviacao)
+
+                if (
+                    circuito_normalizado == nome_normalizado
+                    or circuito_normalizado == abreviacao_normalizada
+                    or self._texto_comeca_com_chave_circuito(circuito_normalizado, abreviacao_normalizada)
+                    or self._texto_comeca_com_chave_circuito(circuito_normalizado, nome_normalizado)
+                ):
+                    return {
+                        "regional": item["nome"],
+                        "circuito": nome_circuito,
+                        "abreviacao": abreviacao,
+                    }
+
+                for circuito_final in circuito_item.get("circuitos_finais", []):
+                    circuito_final_normalizado = self._normalizar_texto_busca(circuito_final)
+                    if (
+                        circuito_normalizado == circuito_final_normalizado
+                        or self._texto_comeca_com_chave_circuito(
+                            circuito_normalizado, circuito_final_normalizado
+                        )
+                    ):
+                        return {
+                            "regional": item["nome"],
+                            "circuito": nome_circuito,
+                            "abreviacao": abreviacao,
+                            "circuito_final": circuito_final,
+                        }
+        return None
+
+    def _obter_regional_pdf(self, dados):
+        regional = self._valor_texto(dados, "Regional", "")
+        if regional:
+            return regional
+
+        regional_detectada = self._valor_texto(dados, "RegionalDetectada", "")
+        if regional_detectada:
+            return regional_detectada
+
+        return self._inferir_regional_por_circuito(self._valor_texto(dados, "Circuito", ""))
+
+    def _obter_nome_circuito_pdf(self, dados):
+        circuito_informado = self._valor_texto(dados, "Circuito", "")
+        info = self._resolver_catalogo_circuito(circuito_informado)
+        if info and info.get("circuito"):
+            return info["circuito"]
+        return circuito_informado or "SemCircuito"
+
     def _serializar_linhas_resultado(self, resultado):
         colunas = list(resultado.keys())
         registros = []
@@ -382,6 +615,50 @@ class Api:
             for equipamento in equipamentos_map.values()
         ]
 
+    def _buscar_registros_equipamentos_consulta(
+        self,
+        regional="",
+        circuito="",
+        abreviacao="",
+        circuito_final="",
+        incluir_regional=True,
+    ):
+        condicoes = []
+        parametros = {}
+
+        if incluir_regional and regional:
+            condicoes.append("CAST([Regional] AS VARCHAR(255)) = :regional")
+            parametros["regional"] = regional
+
+        if circuito_final:
+            condicoes.append("CAST([Circuito] AS VARCHAR(255)) = :circuito_final")
+            parametros["circuito_final"] = circuito_final
+        elif circuito and abreviacao:
+            condicoes.append(
+                "(CAST([Circuito] AS VARCHAR(255)) LIKE :circuito OR CAST([Circuito] AS VARCHAR(255)) LIKE :abreviacao)"
+            )
+            parametros["circuito"] = f"%{circuito}%"
+            parametros["abreviacao"] = f"%{abreviacao}%"
+        elif circuito:
+            condicoes.append("CAST([Circuito] AS VARCHAR(255)) LIKE :circuito")
+            parametros["circuito"] = f"%{circuito}%"
+        elif abreviacao:
+            condicoes.append("CAST([Circuito] AS VARCHAR(255)) LIKE :abreviacao")
+            parametros["abreviacao"] = f"%{abreviacao}%"
+
+        where_sql = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
+        sql = f"""
+        SELECT *
+        FROM {TABELA_HISTORICO}
+        {where_sql}
+        {self._order_by_registros_recentes()}
+        """
+
+        with self._get_conn() as conn:
+            df = pd.read_sql(text(sql), conn, params=parametros)
+
+        return df.fillna("").to_dict(orient="records")
+
     def get_equipamentos_consulta(self, filtros=None):
         try:
             filtros = filtros or {}
@@ -389,43 +666,26 @@ class Api:
             circuito = str(filtros.get("circuito", "")).strip()
             abreviacao = str(filtros.get("abreviacao", "")).strip()
             circuito_final = str(filtros.get("circuito_final", "")).strip()
+            registros = self._buscar_registros_equipamentos_consulta(
+                regional=regional,
+                circuito=circuito,
+                abreviacao=abreviacao,
+                circuito_final=circuito_final,
+                incluir_regional=True,
+            )
 
-            condicoes = []
-            parametros = {}
-
-            if regional:
-                condicoes.append("CAST([Regional] AS VARCHAR(255)) = :regional")
-                parametros["regional"] = regional
-
-            if circuito_final:
-                condicoes.append("CAST([Circuito] AS VARCHAR(255)) = :circuito_final")
-                parametros["circuito_final"] = circuito_final
-            elif circuito and abreviacao:
-                condicoes.append(
-                    "(CAST([Circuito] AS VARCHAR(255)) LIKE :circuito OR CAST([Circuito] AS VARCHAR(255)) LIKE :abreviacao)"
+            # O catálogo da UI vem de CSV e pode usar um nome de regional diferente
+            # do persistido na base. Quando o circuito final já foi selecionado,
+            # ele é a chave mais confiável para refazer a busca.
+            if not registros and regional and circuito_final:
+                registros = self._buscar_registros_equipamentos_consulta(
+                    regional=regional,
+                    circuito=circuito,
+                    abreviacao=abreviacao,
+                    circuito_final=circuito_final,
+                    incluir_regional=False,
                 )
-                parametros["circuito"] = f"%{circuito}%"
-                parametros["abreviacao"] = f"%{abreviacao}%"
-            elif circuito:
-                condicoes.append("CAST([Circuito] AS VARCHAR(255)) LIKE :circuito")
-                parametros["circuito"] = f"%{circuito}%"
-            elif abreviacao:
-                condicoes.append("CAST([Circuito] AS VARCHAR(255)) LIKE :abreviacao")
-                parametros["abreviacao"] = f"%{abreviacao}%"
 
-            where_sql = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
-            sql = f"""
-            SELECT *
-            FROM {TABELA_HISTORICO}
-            {where_sql}
-            {self._order_by_registros_recentes()}
-            """
-
-            with self._get_conn() as conn:
-                df = pd.read_sql(text(sql), conn, params=parametros)
-
-            df = df.fillna("")
-            registros = df.to_dict(orient="records")
             equipamentos = self._agrupar_equipamentos_consulta(registros)
 
             return {
@@ -598,6 +858,16 @@ class Api:
         except Exception as e:
             return {"status": "erro", "regionais": [], "mensagem": str(e)}
 
+    def get_catalogo_consulta(self):
+        try:
+            return {
+                "status": "ok",
+                "regionais": self._obter_catalogo_consulta(),
+                "mensagem": "",
+            }
+        except Exception as e:
+            return {"status": "erro", "regionais": [], "mensagem": str(e)}
+
     def get_opcoes_filtros(self, filtros=None):
         try:
             filtros_normalizados, _, _ = self._montar_where_filtros_consulta(filtros)
@@ -723,8 +993,21 @@ class Api:
                 "mensagem": f"Erro ao carregar: {str(e)}",
             }
 
+    def gerar_pdf_excel(self, dados):
+        return self.pdf_service.gerar_pdf_excel(dados)
+
+    def _gerar_pdf(self, dados):
+        return self.pdf_service.gerar_pdf_navegador(dados)
+
     def salvar(self, dados):
         try:
+            dados = dados or {}
+            regional_inferida = self._obter_regional_pdf(dados)
+            if regional_inferida:
+                dados["RegionalDetectada"] = regional_inferida
+                if not self._valor_texto(dados, "Regional", ""):
+                    dados["Regional"] = regional_inferida
+            mensagem_banco = "Salvo com sucesso"
             with self._get_conn() as conn:
                 colunas_tabela = self._obter_colunas_tabela(conn)
                 dados_salvar = {
@@ -734,42 +1017,59 @@ class Api:
                 }
 
                 if not dados_salvar:
-                    return "Erro ao salvar: nenhum campo compatível com a tabela foi enviado."
+                    return {
+                        "status": "erro",
+                        "mensagem": "Erro ao salvar: nenhum campo compatível com a tabela foi enviado.",
+                    }
 
                 if self._atualizar_por_numero_ajuste(conn, colunas_tabela, dados_salvar):
                     conn.commit()
-                    return "Registro atualizado com sucesso"
-
-                if "NumeroAjuste" in colunas_tabela:
-                    numero_ajuste = self._normalizar_numero_ajuste(
-                        dados_salvar.get("NumeroAjuste")
-                    )
-                    if not numero_ajuste:
-                        dados_salvar["NumeroAjuste"] = self._obter_proximo_numero_ajuste(
-                            conn, colunas_tabela, dados_salvar
+                    mensagem_banco = "Registro atualizado com sucesso"
+                else:
+                    if "NumeroAjuste" in colunas_tabela:
+                        numero_ajuste = self._normalizar_numero_ajuste(
+                            dados_salvar.get("NumeroAjuste")
                         )
+                        if not numero_ajuste:
+                            dados_salvar["NumeroAjuste"] = self._obter_proximo_numero_ajuste(
+                                conn, colunas_tabela, dados_salvar
+                            )
 
-                colunas = ", ".join(f"[{coluna}]" for coluna in dados_salvar.keys())
-                parametros = {
-                    f"valor_{indice}": valor
-                    for indice, valor in enumerate(dados_salvar.values())
+                    colunas = ", ".join(f"[{coluna}]" for coluna in dados_salvar.keys())
+                    parametros = {
+                        f"valor_{indice}": valor
+                        for indice, valor in enumerate(dados_salvar.values())
+                    }
+                    placeholders = ", ".join(
+                        f":valor_{indice}" for indice, _ in enumerate(dados_salvar)
+                    )
+
+                    sql = f"""
+                    INSERT INTO {TABELA_HISTORICO} ({colunas})
+                    VALUES ({placeholders})
+                    """
+
+                    conn.execute(text(sql), parametros)
+                    conn.commit()
+
+            try:
+                caminho_pdf = self.gerar_pdf_excel({**dados, **dados_salvar})
+            except Exception as erro_pdf:
+                return {
+                    "status": "parcial",
+                    "mensagem": f"{mensagem_banco}. PDF não gerado: {str(erro_pdf)}",
+                    "arquivos_pdf": [],
                 }
-                placeholders = ", ".join(
-                    f":valor_{indice}" for indice, _ in enumerate(dados_salvar)
-                )
 
-                sql = f"""
-                INSERT INTO {TABELA_HISTORICO} ({colunas})
-                VALUES ({placeholders})
-                """
-
-                conn.execute(text(sql), parametros)
-                conn.commit()
-
-            return "Salvo com sucesso"
+            return {
+                "status": "ok",
+                "mensagem": mensagem_banco,
+                "caminho_pdf": caminho_pdf,
+                "arquivos_pdf": [caminho_pdf],
+            }
 
         except Exception as e:
-            return f"Erro ao salvar: {str(e)}"
+            return {"status": "erro", "mensagem": f"Erro ao salvar: {str(e)}"}
 
     def deletar_historico(self, registros):
         try:
