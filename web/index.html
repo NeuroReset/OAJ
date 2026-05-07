@@ -141,6 +141,10 @@
             border: 1px solid var(--color-border);
         }
 
+        .technical-table tbody td:not(.font-bold) {
+            font-size: 1.2em;
+        }
+
         .historico-linha-selecionada td {
             background-color: #dbeafe !important;
         }
@@ -648,7 +652,7 @@
                 </div>
 
                 <div class="mb-4 flex items-center justify-between gap-3">
-                    <div class="text-sm font-semibold text-on-surface-variant" id="drafts-resumo">0 drafts</div>
+                    <div class="text-sm font-semibold text-on-surface-variant" id="drafts-resumo">0 rascunhos</div>
                     <button class="btn btn-secondary" onclick="carregarDraftsSalvos()" type="button">Atualizar</button>
                 </div>
 
@@ -662,8 +666,8 @@
                             </svg>
                         </span>
                     </div>
-                    <div class="section-title text-[1.15rem]">Nenhum draft salvo</div>
-                    <p class="mt-2 text-sm">A matrícula atual ainda não possui drafts disponíveis para abrir ou publicar.</p>
+                    <div class="section-title text-[1.15rem]">Nenhum rascunho salvo</div>
+                    <p class="mt-2 text-sm">A matrícula atual ainda não possui rascunhos disponíveis para abrir ou publicar.</p>
                 </div>
             </div>
         </section>

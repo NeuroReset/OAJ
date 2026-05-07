@@ -68,6 +68,8 @@ let historicoTotalRegistros = 0;
 let historicoTamanhoPagina = 100;
 const HISTORICO_FILTROS_STORAGE_KEY = "oaj.historico.filtros";
 const SESSION_MATRICULA_STORAGE_KEY = "oaj.session.matricula";
+const CONSULTA_ESTADO_STORAGE_KEY = "oaj.consulta.estado";
+const ABA_ATIVA_STORAGE_KEY = "oaj.aba.ativa";
 const HISTORICO_FILTROS_PADRAO = {
     numero: "",
     circuito: "",
@@ -87,6 +89,8 @@ let consultaBuscaEquipamento = "";
 let consultaBuscaRegistro = "";
 let consultaEquipamentos = [];
 let consultaCircuitosDisponiveisBanco = [];
+let consultaInicializada = false;
+let abaAtiva = "inicio";
 let draftsSalvos = [];
 const OBSERVACOES_FIXAS = [
     "Single Shot: Ativo conforme os ajustes parametrizados na operação 01.",
@@ -214,6 +218,88 @@ function obterEquipmentIdAtual() {
     return valorCampo("header-numero");
 }
 
+function persistirAbaAtiva() {
+    try {
+        window.sessionStorage?.setItem(ABA_ATIVA_STORAGE_KEY, abaAtiva);
+    } catch (erro) {
+        console.warn("Falha ao persistir aba ativa.", erro);
+    }
+}
+
+function carregarAbaAtivaPersistida() {
+    try {
+        return String(window.sessionStorage?.getItem(ABA_ATIVA_STORAGE_KEY) || "").trim();
+    } catch (erro) {
+        console.warn("Falha ao restaurar aba ativa.", erro);
+        return "";
+    }
+}
+
+function persistirEstadoConsulta() {
+    try {
+        window.sessionStorage?.setItem(
+            CONSULTA_ESTADO_STORAGE_KEY,
+            JSON.stringify({
+                telaAtual: consultaTelaAtual,
+                regionalId: consultaRegionalId,
+                circuitoId: consultaCircuitoId,
+                circuitoFinal: consultaCircuitoFinal,
+                equipamentoId: consultaEquipamentoId,
+                buscaEquipamento: consultaBuscaEquipamento,
+                buscaRegistro: consultaBuscaRegistro,
+            }),
+        );
+    } catch (erro) {
+        console.warn("Falha ao persistir estado da consulta.", erro);
+    }
+}
+
+function limparEstadoConsultaPersistido() {
+    try {
+        window.sessionStorage?.removeItem(CONSULTA_ESTADO_STORAGE_KEY);
+    } catch (erro) {
+        console.warn("Falha ao limpar estado da consulta.", erro);
+    }
+}
+
+function resetarEstadoConsulta() {
+    consultaTelaAtual = 1;
+    consultaRegionalId = "";
+    consultaCircuitoId = "";
+    consultaCircuitoFinal = "";
+    consultaEquipamentoId = "";
+    consultaBuscaEquipamento = "";
+    consultaBuscaRegistro = "";
+    consultaEquipamentos = [];
+    consultaCircuitosDisponiveisBanco = [];
+    consultaInicializada = false;
+    limparEstadoConsultaPersistido();
+}
+
+function restaurarEstadoConsultaPersistido() {
+    try {
+        const salvo = window.sessionStorage?.getItem(CONSULTA_ESTADO_STORAGE_KEY);
+        if (!salvo) {
+            return false;
+        }
+
+        const dados = JSON.parse(salvo);
+        consultaTelaAtual = [1, 2, 3].includes(Number(dados?.telaAtual))
+            ? Number(dados.telaAtual)
+            : 1;
+        consultaRegionalId = String(dados?.regionalId || "").trim();
+        consultaCircuitoId = String(dados?.circuitoId || "").trim();
+        consultaCircuitoFinal = String(dados?.circuitoFinal || "").trim();
+        consultaEquipamentoId = String(dados?.equipamentoId || "").trim();
+        consultaBuscaEquipamento = String(dados?.buscaEquipamento || "");
+        consultaBuscaRegistro = String(dados?.buscaRegistro || "");
+        return Boolean(consultaRegionalId || consultaCircuitoId || consultaCircuitoFinal || consultaEquipamentoId);
+    } catch (erro) {
+        console.warn("Falha ao restaurar estado da consulta.", erro);
+        return false;
+    }
+}
+
 function carregarFiltrosHistoricoPersistidos() {
     try {
         const salvo = window.localStorage?.getItem(HISTORICO_FILTROS_STORAGE_KEY);
@@ -320,6 +406,9 @@ function atualizarControlesPaginacaoHistorico() {
 }
 
 function alternarTela(aba) {
+    const abaAnterior = abaAtiva;
+    abaAtiva = aba;
+    persistirAbaAtiva();
 
     document.querySelectorAll("[data-screen]").forEach((section) => {
         const ativa = section.dataset.screen === aba;
@@ -346,6 +435,8 @@ function alternarTela(aba) {
 
     if (aba === "consulta") {
         inicializarConsulta();
+    } else if (abaAnterior === "consulta") {
+        resetarEstadoConsulta();
     }
 }
 
@@ -375,7 +466,7 @@ function renderizarDraftsSalvos() {
         return;
     }
 
-    resumo.textContent = `${draftsSalvos.length} draft${draftsSalvos.length === 1 ? "" : "s"}`;
+    resumo.textContent = `${draftsSalvos.length} rascunho${draftsSalvos.length === 1 ? "" : "s"}`;
 
     if (!draftsSalvos.length) {
         lista.innerHTML = "";
@@ -417,7 +508,7 @@ async function carregarDraftsSalvos() {
     const vazio = document.getElementById("drafts-vazio");
     const resumo = document.getElementById("drafts-resumo");
     if (lista) {
-        lista.innerHTML = `<div class="app-card px-6 py-8 text-center text-sm text-on-surface-variant">Carregando drafts...</div>`;
+        lista.innerHTML = `<div class="app-card px-6 py-8 text-center text-sm text-on-surface-variant">Carregando rascunhos...</div>`;
     }
     if (vazio) {
         vazio.classList.add("hidden");
@@ -430,7 +521,7 @@ async function carregarDraftsSalvos() {
         await garantirSessao();
         const resposta = await window.pywebview.api.list_drafts();
         if (resposta?.status === "erro") {
-            throw new Error(resposta?.mensagem || "Falha ao listar drafts.");
+            throw new Error(resposta?.mensagem || "Falha ao listar rascunhos.");
         }
 
         atualizarMatriculaAtiva(resposta?.matricula || obterMatriculaPersistida());
@@ -757,6 +848,8 @@ function renderizarConsulta() {
     if (consultaTelaAtual === 3) {
         renderizarTela3Consulta();
     }
+
+    persistirEstadoConsulta();
 }
 
 async function carregarFluxoConsulta() {
@@ -813,6 +906,18 @@ async function inicializarConsulta() {
         if (consultaRegionalId) {
             await carregarCircuitosConsultaDoBanco();
         }
+        if (consultaTelaAtual >= 2 && consultaRegionalId && consultaCircuitoId && consultaCircuitoFinal) {
+            await carregarEquipamentosConsulta();
+            if (
+                consultaTelaAtual === 3 &&
+                consultaEquipamentoId &&
+                !consultaEquipamentos.some((item) => item.id === consultaEquipamentoId)
+            ) {
+                consultaTelaAtual = 2;
+                consultaEquipamentoId = "";
+            }
+        }
+        consultaInicializada = true;
         renderizarConsulta();
     } catch (erro) {
         console.error(erro);
@@ -1163,6 +1268,59 @@ function valorCampo(id) {
     return document.getElementById(id)?.value?.trim() || "";
 }
 
+function formatarSegmentoCircuito(valor) {
+    const texto = String(valor || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const letras = texto.slice(0, 3).replace(/[^A-Z]/g, "");
+    const digitos = texto.slice(3).replace(/\D/g, "").slice(0, 4);
+
+    if (!letras && !digitos) {
+        return "";
+    }
+
+    if (!digitos) {
+        return letras;
+    }
+
+    return `${letras}-${digitos}`;
+}
+
+function valorIndicaOff(valor) {
+    return String(valor || "").trim().toUpperCase() === "OFF";
+}
+
+function detectarTipoCircuito(valor, pickup51N = "", curvaFase = "") {
+    if (valorIndicaOff(pickup51N) && valorIndicaOff(curvaFase)) {
+        return "MN";
+    }
+
+    const texto = String(valor || "").trim().toUpperCase();
+    if (!texto) {
+        return "";
+    }
+
+    return texto.includes("_X_") ? "NA" : "NF";
+}
+
+function formatarCircuitoValor(valor) {
+    const texto = String(valor || "").trim().toUpperCase();
+    const possuiSeparadorFinal = /\s*_?\s*X\s*_?\s*$/i.test(texto);
+    const segmentos = texto
+        .split(/\s*_?\s*X\s*_?\s*/i)
+        .map((parte) => formatarSegmentoCircuito(parte))
+        .filter(Boolean);
+
+    if (!segmentos.length) {
+        return "";
+    }
+
+    const numeroFormatado = segmentos.slice(0, 2).join("_x_");
+    if (possuiSeparadorFinal && segmentos.length === 1) {
+        return `${numeroFormatado}_x_`;
+    }
+
+    return numeroFormatado;
+}
+
 function obterDataHojeIso() {
     const agora = new Date();
     const ano = agora.getFullYear();
@@ -1215,9 +1373,14 @@ function dataBrParaIso(dataBr) {
 
 function sincronizarDadosHeader() {
     const dataExecucao = document.getElementById("header-data-input");
+    const campoCircuito = document.getElementById("header-circuito");
 
     if (dataExecucao && !dataExecucao.value) {
         dataExecucao.value = obterDataHojeIso();
+    }
+
+    if (campoCircuito) {
+        campoCircuito.value = formatarCircuitoValor(campoCircuito.value);
     }
 }
 
@@ -1535,7 +1698,7 @@ async function capturarImagemPdfFront() {
 function preencherFormularioComDraft(dados) {
     const payload = dados || {};
     document.getElementById("header-numero").value = String(payload.Numero || payload.Religador || "");
-    document.getElementById("header-circuito").value = String(payload.Circuito || "");
+    document.getElementById("header-circuito").value = formatarCircuitoValor(String(payload.Circuito || ""));
     document.getElementById("header-marca").value = String(payload.Marca || "");
     document.getElementById("header-autor").value = String(payload.Engenheiro || "");
     document.getElementById("header-tensao").value = String(payload.TensaoPdf || payload.Tensao || "");
@@ -1558,13 +1721,13 @@ async function abrirDraftSalvo(equipmentId) {
         await garantirSessao();
         const resposta = await window.pywebview.api.get_draft(equipmentId);
         if (resposta?.status === "erro") {
-            throw new Error(resposta?.mensagem || "Falha ao abrir draft.");
+            throw new Error(resposta?.mensagem || "Falha ao abrir rascunho.");
         }
 
         preencherFormularioComDraft(resposta?.draft?.dados || {});
         alternarTela("inicio");
     } catch (erro) {
-        alert(erro?.message || "Falha ao abrir draft.");
+        alert(erro?.message || "Falha ao abrir rascunho.");
     }
 }
 
@@ -1573,7 +1736,7 @@ async function publicarDraftSalvo(equipmentId) {
         await garantirSessao();
         const resposta = await window.pywebview.api.publicar({ Numero: equipmentId });
         if (resposta?.status === "erro") {
-            throw new Error(resposta?.mensagem || "Falha ao publicar draft.");
+            throw new Error(resposta?.mensagem || "Falha ao publicar rascunho.");
         }
 
         const arquivos = Array.isArray(resposta?.arquivos_pdf) ? resposta.arquivos_pdf : [];
@@ -1584,12 +1747,12 @@ async function publicarDraftSalvo(equipmentId) {
         alert(`${resposta?.mensagem || "Publicado com sucesso."}${mensagemArquivos}${mensagemSharepoint}`);
         await carregarDraftsSalvos();
     } catch (erro) {
-        alert(erro?.message || "Falha ao publicar draft.");
+        alert(erro?.message || "Falha ao publicar rascunho.");
     }
 }
 
 async function excluirDraftSalvo(equipmentId) {
-    const confirmar = window.confirm(`Deseja excluir o draft do equipamento ${equipmentId}?`);
+    const confirmar = window.confirm(`Deseja excluir o rascunho do equipamento ${equipmentId}?`);
     if (!confirmar) {
         return;
     }
@@ -1598,23 +1761,32 @@ async function excluirDraftSalvo(equipmentId) {
         await garantirSessao();
         const resposta = await window.pywebview.api.delete_draft(equipmentId);
         if (resposta?.status === "erro") {
-            throw new Error(resposta?.mensagem || "Falha ao excluir draft.");
+            throw new Error(resposta?.mensagem || "Falha ao excluir rascunho.");
         }
 
-        alert(resposta?.mensagem || "Draft removido com sucesso.");
+        alert(resposta?.mensagem || "Rascunho removido com sucesso.");
         await carregarDraftsSalvos();
     } catch (erro) {
-        alert(erro?.message || "Falha ao excluir draft.");
+        alert(erro?.message || "Falha ao excluir rascunho.");
     }
 }
 
 function montarRegistroOrdenado() {
     const dataEmissao = extrairDataEmissao();
     const engenheiro = valorCampo("header-autor");
-    const circuitoInformado = valorCampo("header-circuito");
+    const circuitoInformado = formatarCircuitoValor(valorCampo("header-circuito"));
     const regionalDetectada = encontrarRegionalPorCircuito(circuitoInformado);
     const tensao = valorCampo("header-tensao");
     const ajustes = Array.from(document.querySelectorAll(".technical-table input"));
+    const pickup51N = ajustes[10]?.value?.trim() || "";
+    const curvaNeutro = ajustes[11]?.value?.trim() || "";
+    const tipoCircuito = detectarTipoCircuito(circuitoInformado, pickup51N, curvaNeutro);
+    const curvaFase = ajustes[3]?.value?.trim() || "";
+
+    const campoCircuito = document.getElementById("header-circuito");
+    if (campoCircuito) {
+        campoCircuito.value = circuitoInformado;
+    }
 
     const valores = {
         ANO: extrairAno(dataEmissao),
@@ -1622,20 +1794,20 @@ function montarRegistroOrdenado() {
         Circuito: circuitoInformado,
         Regional: regionalDetectada?.regional || "",
         Marca: valorCampo("header-marca"),
-        Tipo: "",
+        Tipo: tipoCircuito,
         Data_Emissao: dataEmissao,
         Engenheiro: engenheiro,
         Pickup_50P: ajustes[0]?.value?.trim() || "",
         Tempo_Minimo_50P: ajustes[1]?.value?.trim() || "",
         Pickup_51P: ajustes[2]?.value?.trim() || "",
-        Curva_Fase: ajustes[3]?.value?.trim() || "",
+        Curva_Fase: curvaFase,
         TimeDial_Fase: ajustes[4]?.value?.trim() || "",
         Curva_Rapida_Fase: ajustes[5]?.value?.trim() || "",
         TimeDial_CR: ajustes[6]?.value?.trim() || "",
         PartidaCR: ajustes[7]?.value?.trim() || "",
         Pickup_50N: ajustes[8]?.value?.trim() || "",
         Tempo_Minimo_50N: ajustes[9]?.value?.trim() || "",
-        Pickup_51N: ajustes[10]?.value?.trim() || "",
+        Pickup_51N: pickup51N,
         Curva_Neutro: ajustes[11]?.value?.trim() || "",
         TimeDial_Neutro: ajustes[12]?.value?.trim() || "",
         CurvaRapidaNeutro: ajustes[13]?.value?.trim() || "",
@@ -1680,7 +1852,7 @@ async function salvar() {
             return;
         }
 
-        alert(res?.mensagem || "Draft salvo com sucesso.");
+        alert(res?.mensagem || "Rascunho salvo com sucesso.");
         if (!document.querySelector('[data-screen="salvos"]')?.classList.contains("hidden")) {
             await carregarDraftsSalvos();
         }
@@ -1732,6 +1904,12 @@ async function gerarPdfTeste() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+    const abaPersistida = carregarAbaAtivaPersistida();
+    if (abaPersistida === "consulta") {
+        restaurarEstadoConsultaPersistido();
+        abaAtiva = "consulta";
+    }
+
     sincronizarSessaoAtiva();
     historicoFiltros = carregarFiltrosHistoricoPersistidos();
     aplicarFiltrosHistoricoNaTela();
@@ -1743,6 +1921,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll(".tab-trigger").forEach((botao) => {
         botao.addEventListener("click", () => alternarTela(botao.dataset.tab));
+    });
+
+    document.getElementById("header-circuito")?.addEventListener("input", (evento) => {
+        const valorFormatado = formatarCircuitoValor(evento.target.value);
+        if (evento.target.value !== valorFormatado) {
+            evento.target.value = valorFormatado;
+        }
     });
 
     document.querySelectorAll("#filtro-numero, #filtro-circuito, #filtro-ano").forEach((campo) => {
@@ -1790,6 +1975,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const botaoVoltar2 = document.getElementById("consulta-voltar-2");
     const buscaEquipamento = document.getElementById("consulta-busca-equipamento");
     const buscaRegistro = document.getElementById("consulta-busca-registro");
+
+    if (buscaEquipamento) {
+        buscaEquipamento.value = consultaBuscaEquipamento;
+    }
+    if (buscaRegistro) {
+        buscaRegistro.value = consultaBuscaRegistro;
+    }
 
     regionalSelect?.addEventListener("change", async (evento) => {
         consultaRegionalId = evento.target.value;
@@ -1851,6 +2043,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     buscaEquipamento?.addEventListener("input", (evento) => {
         consultaBuscaEquipamento = evento.target.value || "";
+        persistirEstadoConsulta();
         if (consultaTelaAtual === 2) {
             renderizarTela2Consulta();
         }
@@ -1858,8 +2051,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     buscaRegistro?.addEventListener("input", (evento) => {
         consultaBuscaRegistro = evento.target.value || "";
+        persistirEstadoConsulta();
         if (consultaTelaAtual === 3) {
             renderizarTela3Consulta();
         }
     });
+
+    alternarTela(abaPersistida === "consulta" ? "consulta" : "inicio");
 });

@@ -127,8 +127,32 @@ class Api:
             raise ValueError("Número do equipamento é obrigatório para SAVE/PUBLISH.")
         return equipment_id
 
+    def _inferir_tipo_por_circuito(self, circuito):
+        texto = str(circuito or "").strip().upper()
+        if not texto:
+            return ""
+        return "NA" if "_X_" in texto else "NF"
+
+    def _valor_indica_off(self, valor):
+        return str(valor or "").strip().upper() == "OFF"
+
+    def _inferir_tipo(self, dados):
+        if self._valor_indica_off(self._valor_texto(dados, "Pickup_51N", "")) and self._valor_indica_off(
+            self._valor_texto(dados, "Curva_Neutro", "")
+        ):
+            return "MN"
+
+        circuito = self._valor_texto(dados, "Circuito", "")
+        return self._inferir_tipo_por_circuito(circuito)
+
     def _prepare_dados_salvar(self, dados):
         dados = dados or {}
+        tipo = self._valor_texto(dados, "Tipo", "")
+        if not tipo:
+            dados["Tipo"] = self._inferir_tipo(dados)
+        else:
+            dados["Tipo"] = self._inferir_tipo(dados)
+
         regional_inferida = self._obter_regional_pdf(dados)
         if regional_inferida:
             dados["RegionalDetectada"] = regional_inferida
@@ -1163,7 +1187,7 @@ class Api:
             drafts = draft_manager.list_drafts(matricula)
             return {"status": "ok", "matricula": matricula, "drafts": drafts}
         except Exception as e:
-            return {"status": "erro", "mensagem": f"Erro ao listar drafts: {str(e)}"}
+            return {"status": "erro", "mensagem": f"Erro ao listar rascunhos: {str(e)}"}
 
     def get_draft(self, equipment_id):
         try:
@@ -1171,7 +1195,7 @@ class Api:
             draft = draft_manager.load_draft(matricula, equipment_id)
             return {"status": "ok", "matricula": matricula, "draft": draft}
         except Exception as e:
-            return {"status": "erro", "mensagem": f"Erro ao carregar draft: {str(e)}"}
+            return {"status": "erro", "mensagem": f"Erro ao carregar rascunho: {str(e)}"}
 
     def delete_draft(self, equipment_id):
         try:
@@ -1189,11 +1213,11 @@ class Api:
                 draft_manager.release_lock(equipment_id)
 
             if not removido:
-                return {"status": "erro", "mensagem": "Draft nÃ£o encontrado."}
+                return {"status": "erro", "mensagem": "Rascunho não encontrado."}
 
-            return {"status": "ok", "mensagem": "Draft removido com sucesso."}
+            return {"status": "ok", "mensagem": "Rascunho removido com sucesso."}
         except Exception as e:
-            return {"status": "erro", "mensagem": f"Erro ao remover draft: {str(e)}"}
+            return {"status": "erro", "mensagem": f"Erro ao remover rascunho: {str(e)}"}
 
     def salvar_legacy(self, dados):
         try:
@@ -1289,7 +1313,7 @@ class Api:
             draft_manager.save_draft(matricula, equipment_id, dados)
             return {
                 "status": "ok",
-                "mensagem": "Draft salvo localmente com sucesso.",
+                "mensagem": "Rascunho salvo localmente com sucesso.",
                 "equipment_id": equipment_id,
             }
         except Exception as e:

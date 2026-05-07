@@ -112,8 +112,14 @@ class PdfService:
         return datetime.now().strftime("%Y%m%d")
 
     def _obter_tipo_pdf(self, dados):
+        pickup_51n = self._valor_texto(dados, "Pickup_51N", "").strip().upper()
+        curva_neutro = self._valor_texto(dados, "Curva_Neutro", "").strip().upper()
+        tipo_pdf = "MN" if pickup_51n == "OFF" and curva_neutro == "OFF" else self._valor_texto(
+            dados, "Tipo", "Tipo"
+        )
+
         return self._normalizar_nome_arquivo(
-            self._valor_texto(dados, "Tipo", "Tipo"),
+            tipo_pdf,
             "Tipo",
         )
 
