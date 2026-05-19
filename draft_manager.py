@@ -22,6 +22,7 @@ def _session_root_dir():
 
 SESSION_DIR = _session_root_dir()
 SESSION_FILE = os.path.join(SESSION_DIR, "session.json")
+SETTINGS_FILE = os.path.join(SESSION_DIR, "settings.json")
 
 
 def _log(message):
@@ -162,6 +163,34 @@ def load_session():
     except Exception as error:
         _log(f"Erro ao carregar sessão: {error}")
         raise
+
+
+def load_settings():
+    _ensure_directories()
+    if not os.path.exists(SETTINGS_FILE):
+        return {}
+
+    settings = _read_json_file(SETTINGS_FILE)
+    if not isinstance(settings, dict):
+        raise ValueError("Conteúdo de settings inválido.")
+    return settings
+
+
+def save_settings(data):
+    _ensure_directories()
+    if not isinstance(data, dict):
+        raise ValueError("settings deve ser um dicionário.")
+
+    atual = {}
+    if os.path.exists(SETTINGS_FILE):
+        carregado = load_settings()
+        if isinstance(carregado, dict):
+            atual = carregado
+
+    atualizado = {**atual, **data, "saved_at": time.time()}
+    _write_json_file(SETTINGS_FILE, atualizado)
+    _log("Configurações locais salvas.")
+    return atualizado
 
 
 def save_session(matricula):
@@ -392,7 +421,7 @@ def release_lock(equipment_id):
         raise
 
 
-def publish_document(matricula, equipment_id):
+def publish_document(matricula, equipment_id, dados=None):
     _ensure_directories()
     try:
         if not str(matricula or "").strip():
@@ -405,17 +434,28 @@ def publish_document(matricula, equipment_id):
         if session_matricula != requested_matricula:
             raise RuntimeError("Sessão inválida para a matrícula informada.")
 
+        provided_data = dados if isinstance(dados, dict) else None
         lock_info = check_lock(equipment_id)
-        if not lock_info["locked"]:
-            raise RuntimeError("Sem lock ativo para este equipamento.")
+        if provided_data:
+            lock_owner = str(lock_info.get("matricula", "")).strip()
+            if lock_info["locked"] and lock_owner != requested_matricula:
+                raise RuntimeError("Lock pertence a outro usuário.")
 
-        if str(lock_info["matricula"]).strip() != requested_matricula:
-            raise RuntimeError("Lock pertence a outro usuário.")
+            if not lock_info["locked"] and not acquire_lock(requested_matricula, equipment_id):
+                raise RuntimeError("Não foi possível adquirir lock para publicar.")
 
-        draft_payload = load_draft(requested_matricula, equipment_id)
-        dados = draft_payload.get("dados")
-        if not isinstance(dados, dict) or not dados:
-            raise RuntimeError("Sem draft para publicar.")
+            dados = provided_data
+        else:
+            if not lock_info["locked"]:
+                raise RuntimeError("Sem lock ativo para este equipamento.")
+
+            if str(lock_info["matricula"]).strip() != requested_matricula:
+                raise RuntimeError("Lock pertence a outro usuário.")
+
+            draft_payload = load_draft(requested_matricula, equipment_id)
+            dados = draft_payload.get("dados")
+            if not isinstance(dados, dict) or not dados:
+                raise RuntimeError("Sem draft para publicar.")
 
         _log("Iniciando publicação do documento.")
 

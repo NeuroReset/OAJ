@@ -70,6 +70,7 @@ const HISTORICO_FILTROS_STORAGE_KEY = "oaj.historico.filtros";
 const SESSION_MATRICULA_STORAGE_KEY = "oaj.session.matricula";
 const CONSULTA_ESTADO_STORAGE_KEY = "oaj.consulta.estado";
 const ABA_ATIVA_STORAGE_KEY = "oaj.aba.ativa";
+const MODO_FORMULARIO_STORAGE_KEY = "oaj.inicio.modo";
 const HISTORICO_FILTROS_PADRAO = {
     numero: "",
     circuito: "",
@@ -91,7 +92,16 @@ let consultaEquipamentos = [];
 let consultaCircuitosDisponiveisBanco = [];
 let consultaInicializada = false;
 let abaAtiva = "inicio";
+let modoFormulario = "normal";
 let draftsSalvos = [];
+let toastTimeoutId = 0;
+let confirmResolverAtual = null;
+let loadingCounter = 0;
+let appSettings = {
+    sharepoint_root: "",
+    sharepoint_root_default: "",
+    sharepoint_root_effective: "",
+};
 const OBSERVACOES_FIXAS = [
     "Single Shot: Ativo conforme os ajustes parametrizados na operação 01.",
     "Linha Viva: Parametrizar para fase e neutro, curva 101, multiplicador de tempo em 0,01.",
@@ -128,6 +138,277 @@ const CAMPOS_AJUSTES = [
     "Inrush",
     "Sequence_Control",
 ];
+const CAMPOS_AJUSTES_SECCIONALIZADOR = new Set([
+    "Pickup_50P",
+    "Tempo_Minimo_50P",
+    "Pickup_50N",
+    "Tempo_Minimo_50N",
+]);
+
+function normalizarModoFormulario(valor) {
+    return String(valor || "").trim().toLowerCase() === "seccionalizador"
+        ? "seccionalizador"
+        : "normal";
+}
+
+function obterObservacoesFixasPorModo() {
+    return modoFormulario === "seccionalizador" ? [] : OBSERVACOES_FIXAS;
+}
+
+function obterPlaceholderObservacoesPorModo() {
+    return modoFormulario === "seccionalizador"
+        ? "Digite as observações do seccionalizador aqui..."
+        : "Digite observações adicionais aqui...";
+}
+
+function aplicarModoFormulario() {
+    const modoSeccionalizador = modoFormulario === "seccionalizador";
+
+    document.querySelectorAll("[data-form-mode]").forEach((botao) => {
+        const ativo = botao.dataset.formMode === modoFormulario;
+        botao.classList.toggle("tab-pill-active", ativo);
+    });
+
+    document.querySelectorAll("[data-normal-only]").forEach((elemento) => {
+        elemento.classList.toggle("hidden", modoSeccionalizador);
+    });
+
+    document.querySelectorAll("[data-grupo-cell]").forEach((elemento) => {
+        elemento.setAttribute("rowspan", modoSeccionalizador ? "2" : "8");
+    });
+
+    const textos = modoSeccionalizador
+        ? {
+            titulo: "Ordem de Ajuste de Proteção - Secc. RL",
+            cabecalho: "ORDEM DE AJUSTE DE PROTEÇÃO - SECC. RL",
+            numero: "Secc - RL",
+            fase1: "Corrente de Partida (A):",
+            fase2: "Número de contagens:",
+            neutro1: "Corrente de Partida (A):",
+            neutro2: "Número de contagens:",
+        }
+        : {
+            titulo: "Ordem de Ajuste de Proteção - Religador",
+            cabecalho: "ORDEM DE AJUSTE DE PROTEÇÃO - RELIGADOR",
+            numero: "Religador",
+            fase1: "Pickup 50P (A):",
+            fase2: "Tempo Mínimo-Fase",
+            neutro1: "Pickup 50N (A):",
+            neutro2: "Tempo Mínimo-Fase",
+        };
+
+    const mapaTextos = {
+        "modo-formulario-titulo": textos.titulo,
+        "header-template-title": textos.cabecalho,
+        "header-numero-label": textos.numero,
+        "fase-linha-1-label": textos.fase1,
+        "fase-linha-2-label": textos.fase2,
+        "neutro-linha-1-label": textos.neutro1,
+        "neutro-linha-2-label": textos.neutro2,
+    };
+
+    Object.entries(mapaTextos).forEach(([id, valor]) => {
+        const elemento = document.getElementById(id);
+        if (elemento) {
+            elemento.textContent = valor;
+        }
+    });
+
+    const observacoes = document.getElementById("observacoes");
+    if (observacoes) {
+        observacoes.placeholder = obterPlaceholderObservacoesPorModo();
+    }
+
+    window.localStorage?.setItem(MODO_FORMULARIO_STORAGE_KEY, modoFormulario);
+}
+
+function definirModoFormulario(valor) {
+    modoFormulario = normalizarModoFormulario(valor);
+    aplicarModoFormulario();
+}
+
+function mostrarToast(mensagem, tipo = "info") {
+    const toast = document.getElementById("app-toast");
+    if (!toast || !mensagem) {
+        return;
+    }
+
+    window.clearTimeout(toastTimeoutId);
+    toast.textContent = String(mensagem);
+    toast.classList.remove("hidden", "text-slate-700", "text-red-700", "border-red-200", "bg-red-50/96", "border-slate-200", "bg-white/96");
+    if (tipo === "erro") {
+        toast.classList.add("border-red-200", "bg-red-50/96", "text-red-700");
+    } else {
+        toast.classList.add("border-slate-200", "bg-white/96", "text-slate-700");
+    }
+
+    toastTimeoutId = window.setTimeout(() => {
+        toast.classList.add("hidden");
+    }, tipo === "erro" ? 5200 : 2600);
+}
+
+function fecharConfirmacao(aceito) {
+    const overlay = document.getElementById("app-confirm-overlay");
+    if (overlay) {
+        overlay.classList.add("hidden");
+        overlay.classList.remove("flex");
+    }
+
+    if (confirmResolverAtual) {
+        const resolver = confirmResolverAtual;
+        confirmResolverAtual = null;
+        resolver(Boolean(aceito));
+    }
+}
+
+function confirmarExclusao(mensagem, titulo = "Confirmar exclusão") {
+    const overlay = document.getElementById("app-confirm-overlay");
+    const title = document.getElementById("app-confirm-title");
+    const body = document.getElementById("app-confirm-message");
+
+    if (!overlay || !title || !body) {
+        return Promise.resolve(window.confirm(mensagem));
+    }
+
+    title.textContent = titulo;
+    body.textContent = mensagem;
+    overlay.classList.remove("hidden");
+    overlay.classList.add("flex");
+
+    return new Promise((resolve) => {
+        confirmResolverAtual = resolve;
+    });
+}
+
+function iniciarCarregamento(mensagem = "Carregando...") {
+    loadingCounter += 1;
+    const overlay = document.getElementById("app-loading-overlay");
+    const message = document.getElementById("app-loading-message");
+    if (message) {
+        message.textContent = mensagem;
+    }
+    if (overlay) {
+        overlay.classList.remove("hidden");
+        overlay.classList.add("flex");
+    }
+}
+
+function finalizarCarregamento() {
+    loadingCounter = Math.max(0, loadingCounter - 1);
+    if (loadingCounter > 0) {
+        return;
+    }
+
+    const overlay = document.getElementById("app-loading-overlay");
+    if (overlay) {
+        overlay.classList.add("hidden");
+        overlay.classList.remove("flex");
+    }
+}
+
+async function executarComCarregamento(mensagem, operacao) {
+    iniciarCarregamento(mensagem);
+    try {
+        return await operacao();
+    } finally {
+        finalizarCarregamento();
+    }
+}
+
+const API_METHODS_COM_OVERLAY = new Set([
+    "save_settings",
+    "set_session",
+    "delete_draft",
+    "salvar",
+    "publicar",
+    "deletar_historico",
+]);
+
+async function callApi(method, ...args) {
+    const mensagens = {
+        get_settings: "Carregando configurações...",
+        save_settings: "Salvando configurações...",
+        get_session: "Carregando sessão...",
+        set_session: "Salvando sessão...",
+        list_drafts: "Carregando rascunhos...",
+        get_draft: "Abrindo rascunho...",
+        delete_draft: "Removendo rascunho...",
+        salvar: "Salvando rascunho...",
+        publicar: "Publicando documento...",
+        get_catalogo_consulta: "Carregando consulta...",
+        get_circuitos_consulta: "Carregando circuitos...",
+        get_equipamentos_consulta: "Carregando equipamentos...",
+        get_historico: "Carregando histórico...",
+        deletar_historico: "Removendo registros...",
+    };
+
+    if (!API_METHODS_COM_OVERLAY.has(method)) {
+        return window.pywebview.api[method](...args);
+    }
+
+    return executarComCarregamento(
+        mensagens[method] || "Processando...",
+        () => window.pywebview.api[method](...args),
+    );
+}
+
+function renderizarConfiguracoes() {
+    const campo = document.getElementById("settings-sharepoint-root");
+    const efetivo = document.getElementById("settings-sharepoint-effective");
+    const padrao = document.getElementById("settings-sharepoint-default");
+
+    if (campo) {
+        campo.value = String(appSettings.sharepoint_root || "");
+    }
+
+    if (efetivo) {
+        efetivo.textContent = String(appSettings.sharepoint_root_effective || "").trim() || "-";
+    }
+
+    if (padrao) {
+        padrao.textContent = String(appSettings.sharepoint_root_default || "").trim() || "-";
+    }
+}
+
+async function carregarConfiguracoes() {
+    try {
+        const resposta = await callApi("get_settings");
+        if (resposta?.status === "erro") {
+            throw new Error(resposta?.mensagem || "Falha ao carregar configurações.");
+        }
+
+        appSettings = {
+            sharepoint_root: String(resposta?.settings?.sharepoint_root || "").trim(),
+            sharepoint_root_default: String(resposta?.settings?.sharepoint_root_default || "").trim(),
+            sharepoint_root_effective: String(resposta?.settings?.sharepoint_root_effective || "").trim(),
+        };
+        renderizarConfiguracoes();
+    } catch (erro) {
+        mostrarToast(erro?.message || "Falha ao carregar configurações.", "erro");
+    }
+}
+
+async function salvarConfiguracoes() {
+    try {
+        const sharepointRoot = String(document.getElementById("settings-sharepoint-root")?.value || "").trim();
+        const resposta = await callApi("save_settings", {
+            sharepoint_root: sharepointRoot,
+        });
+        if (resposta?.status === "erro") {
+            throw new Error(resposta?.mensagem || "Falha ao salvar configurações.");
+        }
+
+        appSettings = {
+            sharepoint_root: String(resposta?.settings?.sharepoint_root || "").trim(),
+            sharepoint_root_default: String(resposta?.settings?.sharepoint_root_default || "").trim(),
+            sharepoint_root_effective: String(resposta?.settings?.sharepoint_root_effective || "").trim(),
+        };
+        renderizarConfiguracoes();
+        mostrarToast(resposta?.mensagem || "Configurações salvas com sucesso.");
+    } catch (erro) {
+        mostrarToast(erro?.message || "Falha ao salvar configurações.", "erro");
+    }
+}
 
 function obterMatriculaPersistida() {
     return String(window.localStorage?.getItem(SESSION_MATRICULA_STORAGE_KEY) || "").trim();
@@ -147,7 +428,7 @@ function atualizarMatriculaAtiva(matricula) {
 
 async function sincronizarSessaoAtiva() {
     try {
-        const sessaoAtual = await window.pywebview.api.get_session();
+        const sessaoAtual = await callApi("get_session");
         if (sessaoAtual?.status === "ok" && String(sessaoAtual?.matricula || "").trim()) {
             const matriculaAtual = String(sessaoAtual.matricula).trim();
             window.localStorage?.setItem(SESSION_MATRICULA_STORAGE_KEY, matriculaAtual);
@@ -163,7 +444,7 @@ async function sincronizarSessaoAtiva() {
 }
 
 async function garantirSessao() {
-    const sessaoAtual = await window.pywebview.api.get_session();
+    const sessaoAtual = await callApi("get_session");
     if (sessaoAtual?.status === "ok" && String(sessaoAtual?.matricula || "").trim()) {
         const matriculaAtual = String(sessaoAtual.matricula).trim();
         window.localStorage?.setItem(SESSION_MATRICULA_STORAGE_KEY, matriculaAtual);
@@ -182,7 +463,7 @@ async function garantirSessao() {
         throw new Error("Matrícula não informada.");
     }
 
-    const resposta = await window.pywebview.api.set_session(matricula);
+    const resposta = await callApi("set_session", matricula);
     if (resposta?.status === "erro") {
         throw new Error(resposta?.mensagem || "Falha ao salvar sessão.");
     }
@@ -200,9 +481,9 @@ async function trocarMatricula() {
         return;
     }
 
-    const resposta = await window.pywebview.api.set_session(matricula);
+    const resposta = await callApi("set_session", matricula);
     if (resposta?.status === "erro") {
-        alert(resposta?.mensagem || "Falha ao trocar matrícula.");
+        mostrarToast(resposta?.mensagem || "Falha ao trocar matrícula.", "erro");
         return;
     }
 
@@ -438,6 +719,10 @@ function alternarTela(aba) {
     } else if (abaAnterior === "consulta") {
         resetarEstadoConsulta();
     }
+
+    if (aba === "configuracoes") {
+        carregarConfiguracoes();
+    }
 }
 
 function obterStatusLockDraft(draft) {
@@ -519,7 +804,7 @@ async function carregarDraftsSalvos() {
 
     try {
         await garantirSessao();
-        const resposta = await window.pywebview.api.list_drafts();
+        const resposta = await callApi("list_drafts");
         if (resposta?.status === "erro") {
             throw new Error(resposta?.mensagem || "Falha ao listar rascunhos.");
         }
@@ -853,7 +1138,7 @@ function renderizarConsulta() {
 }
 
 async function carregarFluxoConsulta() {
-    const resposta = await window.pywebview.api.get_catalogo_consulta();
+    const resposta = await callApi("get_catalogo_consulta");
     if (resposta?.status === "erro") {
         throw new Error(resposta?.mensagem || "Falha ao carregar catÃ¡logo.");
     }
@@ -883,7 +1168,7 @@ async function carregarCircuitosConsultaDoBanco() {
     }
 
     try {
-        const resposta = await window.pywebview.api.get_circuitos_consulta(regionalAtual.nome);
+        const resposta = await callApi("get_circuitos_consulta", regionalAtual.nome);
         if (resposta?.status === "erro") {
             throw new Error(resposta?.mensagem || "Falha ao carregar circuitos.");
         }
@@ -894,7 +1179,7 @@ async function carregarCircuitosConsultaDoBanco() {
         consultaCircuitosDisponiveisBanco = [];
         consultaFluxo.circuitos = obterCircuitosConsultaDisponiveis(regionalAtual);
         console.error(erro);
-        alert(`Falha ao carregar circuitos: ${erro.message || erro}`);
+        mostrarToast(`Falha ao carregar circuitos: ${erro.message || erro}`, "erro");
     }
 }
 
@@ -921,7 +1206,7 @@ async function inicializarConsulta() {
         renderizarConsulta();
     } catch (erro) {
         console.error(erro);
-        alert(`Falha ao carregar consulta: ${erro.message || erro}`);
+        mostrarToast(`Falha ao carregar consulta: ${erro.message || erro}`, "erro");
     }
 }
 
@@ -931,7 +1216,7 @@ async function carregarEquipamentosConsulta() {
     const abreviacaoAtual = obterAbreviacaoConsultaAtual();
 
     try {
-        const resposta = await window.pywebview.api.get_equipamentos_consulta({
+        const resposta = await callApi("get_equipamentos_consulta", {
             regional: regionalAtual?.nome || "",
             circuito: circuitoAtual?.nome || "",
             abreviacao: circuitoAtual?.abreviacao || "",
@@ -946,7 +1231,7 @@ async function carregarEquipamentosConsulta() {
     } catch (erro) {
         consultaEquipamentos = [];
         console.error(erro);
-        alert(`Falha ao carregar equipamentos: ${erro.message || erro}`);
+        mostrarToast(`Falha ao carregar equipamentos: ${erro.message || erro}`, "erro");
     }
 }
 
@@ -1206,7 +1491,7 @@ async function carregarHistorico() {
     atualizarControlesPaginacaoHistorico();
 
     try {
-        const resposta = await window.pywebview.api.get_historico(obterFiltrosHistorico());
+        const resposta = await callApi("get_historico", obterFiltrosHistorico());
         const colunas = resposta?.colunas?.length ? resposta.colunas : HEADER_ORDEM_AJUSTE;
         const registros = resposta?.registros || [];
         const mensagem = resposta?.mensagem || "";
@@ -1231,32 +1516,32 @@ async function carregarHistorico() {
             body.innerHTML = `<tr><td class="px-4 py-6 text-center text-error" colspan="${HEADER_ORDEM_AJUSTE.length + 1}">Falha ao carregar histórico.</td></tr>`;
         }
         console.error(erro);
-        alert(`Falha ao carregar histórico: ${erro.message || erro}`);
+        mostrarToast(`Falha ao carregar histórico: ${erro.message || erro}`, "erro");
     }
 }
 
 async function deletarSelecionados() {
     const registros = obterRegistrosSelecionados();
     if (!registros.length) {
-        alert("Selecione ao menos uma linha.");
+        mostrarToast("Selecione ao menos uma linha.", "erro");
         return;
     }
 
-    const confirmar = window.confirm(`Deseja deletar ${registros.length} registro${registros.length === 1 ? "" : "s"} selecionado${registros.length === 1 ? "" : "s"}?`);
+    const confirmar = await confirmarExclusao(`Deseja deletar ${registros.length} registro${registros.length === 1 ? "" : "s"} selecionado${registros.length === 1 ? "" : "s"}?`, "Confirmar exclusão");
     if (!confirmar) {
         return;
     }
 
     try {
-        const resposta = await window.pywebview.api.deletar_historico(registros);
+        const resposta = await callApi("deletar_historico", registros);
         if (resposta?.status === "erro") {
             throw new Error(resposta?.mensagem || "Falha ao deletar registros.");
         }
-        alert(resposta?.mensagem || "Registros deletados com sucesso.");
+        mostrarToast(resposta?.mensagem || "Registros deletados com sucesso.");
         await carregarHistorico();
     } catch (erro) {
         console.error(erro);
-        alert(`Falha ao deletar registros: ${erro.message || erro}`);
+        mostrarToast(`Falha ao deletar registros: ${erro.message || erro}`, "erro");
     }
 }
 
@@ -1374,6 +1659,8 @@ function dataBrParaIso(dataBr) {
 function sincronizarDadosHeader() {
     const dataExecucao = document.getElementById("header-data-input");
     const campoCircuito = document.getElementById("header-circuito");
+    const campoTensao = document.getElementById("header-tensao");
+    const campoTensaoDisplay = document.getElementById("header-tensao-display");
 
     if (dataExecucao && !dataExecucao.value) {
         dataExecucao.value = obterDataHojeIso();
@@ -1381,6 +1668,14 @@ function sincronizarDadosHeader() {
 
     if (campoCircuito) {
         campoCircuito.value = formatarCircuitoValor(campoCircuito.value);
+    }
+
+    if (campoTensao) {
+        campoTensao.value = campoTensao.value || "13.800V";
+    }
+
+    if (campoTensaoDisplay) {
+        campoTensaoDisplay.textContent = campoTensao?.value || "13.800V";
     }
 }
 
@@ -1395,10 +1690,7 @@ function extrairAno(dataEmissao) {
 }
 
 function extrairObservacoes() {
-    const observacoesFixas = [
-        "Single Shot: Ativo conforme os ajustes parametrizados na operação 01.",
-        "Linha Viva: Parametrizar para fase e neutro, curva 101, multiplicador de tempo em 0,01.",
-    ];
+    const observacoesFixas = obterObservacoesFixasPorModo();
     const observacoesAdicionais = document.getElementById("observacoes")?.value?.trim() || "";
 
     return observacoesAdicionais
@@ -1416,7 +1708,7 @@ function extrairObservacoesAdicionais(valor) {
         .split("|")
         .map((item) => item.trim())
         .filter(Boolean)
-        .filter((item) => !OBSERVACOES_FIXAS.includes(item));
+        .filter((item) => !obterObservacoesFixasPorModo().includes(item));
 
     return partes.join(" | ");
 }
@@ -1697,11 +1989,13 @@ async function capturarImagemPdfFront() {
 
 function preencherFormularioComDraft(dados) {
     const payload = dados || {};
+    definirModoFormulario(payload.ModoFormulario || payload.Modo || "");
     document.getElementById("header-numero").value = String(payload.Numero || payload.Religador || "");
     document.getElementById("header-circuito").value = formatarCircuitoValor(String(payload.Circuito || ""));
     document.getElementById("header-marca").value = String(payload.Marca || "");
     document.getElementById("header-autor").value = String(payload.Engenheiro || "");
     document.getElementById("header-tensao").value = String(payload.TensaoPdf || payload.Tensao || "");
+    document.getElementById("header-tensao-display").textContent = String(payload.TensaoPdf || payload.Tensao || "13.800V");
     document.getElementById("header-data-input").value = dataBrParaIso(payload.Data_Emissao || "");
     document.getElementById("observacoes").value = extrairObservacoesAdicionais(payload.Observacoes || "");
 
@@ -1719,7 +2013,7 @@ function preencherFormularioComDraft(dados) {
 async function abrirDraftSalvo(equipmentId) {
     try {
         await garantirSessao();
-        const resposta = await window.pywebview.api.get_draft(equipmentId);
+        const resposta = await callApi("get_draft", equipmentId);
         if (resposta?.status === "erro") {
             throw new Error(resposta?.mensagem || "Falha ao abrir rascunho.");
         }
@@ -1727,14 +2021,14 @@ async function abrirDraftSalvo(equipmentId) {
         preencherFormularioComDraft(resposta?.draft?.dados || {});
         alternarTela("inicio");
     } catch (erro) {
-        alert(erro?.message || "Falha ao abrir rascunho.");
+        mostrarToast(erro?.message || "Falha ao abrir rascunho.", "erro");
     }
 }
 
 async function publicarDraftSalvo(equipmentId) {
     try {
         await garantirSessao();
-        const resposta = await window.pywebview.api.publicar({ Numero: equipmentId });
+        const resposta = await callApi("publicar", { Numero: equipmentId });
         if (resposta?.status === "erro") {
             throw new Error(resposta?.mensagem || "Falha ao publicar rascunho.");
         }
@@ -1744,30 +2038,30 @@ async function publicarDraftSalvo(equipmentId) {
         const mensagemSharepoint = resposta?.sharepoint_path
             ? `\nSharePoint:\n${resposta.sharepoint_path}`
             : "";
-        alert(`${resposta?.mensagem || "Publicado com sucesso."}${mensagemArquivos}${mensagemSharepoint}`);
+        mostrarToast(resposta?.mensagem || "Publicado com sucesso.");
         await carregarDraftsSalvos();
     } catch (erro) {
-        alert(erro?.message || "Falha ao publicar rascunho.");
+        mostrarToast(erro?.message || "Falha ao publicar rascunho.", "erro");
     }
 }
 
 async function excluirDraftSalvo(equipmentId) {
-    const confirmar = window.confirm(`Deseja excluir o rascunho do equipamento ${equipmentId}?`);
+    const confirmar = await confirmarExclusao(`Deseja excluir o rascunho do equipamento ${equipmentId}?`, "Confirmar exclusão");
     if (!confirmar) {
         return;
     }
 
     try {
         await garantirSessao();
-        const resposta = await window.pywebview.api.delete_draft(equipmentId);
+        const resposta = await callApi("delete_draft", equipmentId);
         if (resposta?.status === "erro") {
             throw new Error(resposta?.mensagem || "Falha ao excluir rascunho.");
         }
 
-        alert(resposta?.mensagem || "Rascunho removido com sucesso.");
+        mostrarToast(resposta?.mensagem || "Rascunho removido com sucesso.");
         await carregarDraftsSalvos();
     } catch (erro) {
-        alert(erro?.message || "Falha ao excluir rascunho.");
+        mostrarToast(erro?.message || "Falha ao excluir rascunho.", "erro");
     }
 }
 
@@ -1791,6 +2085,7 @@ function montarRegistroOrdenado() {
     const valores = {
         ANO: extrairAno(dataEmissao),
         Numero: valorCampo("header-numero"),
+        ModoFormulario: modoFormulario,
         Circuito: circuitoInformado,
         Regional: regionalDetectada?.regional || "",
         Marca: valorCampo("header-marca"),
@@ -1833,10 +2128,19 @@ function montarRegistroOrdenado() {
         TensaoPdf: tensao,
     };
 
+    if (modoFormulario === "seccionalizador") {
+        CAMPOS_AJUSTES.forEach((campo) => {
+            if (!CAMPOS_AJUSTES_SECCIONALIZADOR.has(campo)) {
+                valores[campo] = "";
+            }
+        });
+    }
+
     return HEADER_ORDEM_AJUSTE.reduce((registro, chave) => {
         registro[chave] = valores[chave] ?? "";
         return registro;
     }, {
+        ModoFormulario: valores.ModoFormulario,
         RegionalDetectada: valores.RegionalDetectada,
         TensaoPdf: valores.TensaoPdf,
     });
@@ -1846,33 +2150,34 @@ async function salvar() {
     try {
         const dados = montarRegistroOrdenado();
         await garantirSessao();
-        const res = await window.pywebview.api.salvar(dados);
+        const res = await callApi("salvar", dados);
         if (res?.status === "erro") {
-            alert(res?.mensagem || "Falha ao salvar.");
+            mostrarToast(res?.mensagem || "Falha ao salvar.", "erro");
             return;
         }
 
-        alert(res?.mensagem || "Rascunho salvo com sucesso.");
+        mostrarToast(res?.mensagem || "Rascunho salvo com sucesso.");
         if (!document.querySelector('[data-screen="salvos"]')?.classList.contains("hidden")) {
             await carregarDraftsSalvos();
         }
     } catch (erro) {
-        alert(erro?.message || "Falha ao preparar sessão para salvar.");
+        mostrarToast(erro?.message || "Falha ao preparar sessão para salvar.", "erro");
     }
 }
 
 async function publicar() {
     try {
-        const equipmentId = obterEquipmentIdAtual();
+        const dados = montarRegistroOrdenado();
+        const equipmentId = String(dados?.Numero || obterEquipmentIdAtual() || "").trim();
         if (!equipmentId) {
-            alert("Informe o número do equipamento antes de publicar.");
+            mostrarToast("Informe o número do equipamento antes de publicar.", "erro");
             return;
         }
 
         await garantirSessao();
-        const res = await window.pywebview.api.publicar({ Numero: equipmentId });
+        const res = await callApi("publicar", dados);
         if (res?.status === "erro") {
-            alert(res?.mensagem || "Falha ao publicar.");
+            mostrarToast(res?.mensagem || "Falha ao publicar.", "erro");
             return;
         }
 
@@ -1881,30 +2186,18 @@ async function publicar() {
         const mensagemSharepoint = res?.sharepoint_path
             ? `\nSharePoint:\n${res.sharepoint_path}`
             : "";
-        alert(`${res?.mensagem || "Publicado com sucesso."}${mensagemArquivos}${mensagemSharepoint}`);
+        mostrarToast(res?.mensagem || "Publicado com sucesso.");
         if (!document.querySelector('[data-screen="salvos"]')?.classList.contains("hidden")) {
             await carregarDraftsSalvos();
         }
     } catch (erro) {
-        alert(erro?.message || "Falha ao preparar sessão para publicar.");
+        mostrarToast(erro?.message || "Falha ao preparar sessão para publicar.", "erro");
     }
-}
-
-async function gerarPdfTeste() {
-    const dados = montarRegistroOrdenado();
-    const res = await window.pywebview.api.gerar_pdf_excel_teste(dados);
-    if (res?.status === "erro") {
-        alert(res?.mensagem || "Falha ao gerar PDF de teste.");
-        return;
-    }
-
-    const arquivos = Array.isArray(res?.arquivos_pdf) ? res.arquivos_pdf : [];
-    const mensagemArquivos = arquivos.length ? `\nPDF salvo em:\n${arquivos.join("\n")}` : "";
-    alert(`${res?.mensagem || "PDF de teste gerado com sucesso"}${mensagemArquivos}`);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
     const abaPersistida = carregarAbaAtivaPersistida();
+    definirModoFormulario(window.localStorage?.getItem(MODO_FORMULARIO_STORAGE_KEY) || "");
     if (abaPersistida === "consulta") {
         restaurarEstadoConsultaPersistido();
         abaAtiva = "consulta";
@@ -1921,6 +2214,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll(".tab-trigger").forEach((botao) => {
         botao.addEventListener("click", () => alternarTela(botao.dataset.tab));
+    });
+
+    document.querySelectorAll("[data-form-mode]").forEach((botao) => {
+        botao.addEventListener("click", () => definirModoFormulario(botao.dataset.formMode));
+    });
+
+    document.getElementById("app-confirm-cancel")?.addEventListener("click", () => fecharConfirmacao(false));
+    document.getElementById("app-confirm-accept")?.addEventListener("click", () => fecharConfirmacao(true));
+    document.getElementById("app-confirm-overlay")?.addEventListener("click", (evento) => {
+        if (evento.target?.id === "app-confirm-overlay") {
+            fecharConfirmacao(false);
+        }
+    });
+    document.getElementById("settings-save")?.addEventListener("click", () => salvarConfiguracoes());
+
+    document.addEventListener("keydown", (evento) => {
+        if (evento.key === "Escape" && confirmResolverAtual) {
+            fecharConfirmacao(false);
+        }
     });
 
     document.getElementById("header-circuito")?.addEventListener("input", (evento) => {
@@ -2057,5 +2369,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    alternarTela(abaPersistida === "consulta" ? "consulta" : "inicio");
+    if (abaPersistida === "configuracoes") {
+        alternarTela("configuracoes");
+    } else {
+        alternarTela(abaPersistida === "consulta" ? "consulta" : "inicio");
+    }
 });

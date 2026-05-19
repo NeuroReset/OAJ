@@ -105,7 +105,8 @@ class Api:
             valor_texto=self._valor_texto,
             obter_regional_pdf=self._obter_regional_pdf,
             obter_nome_circuito_pdf=self._obter_nome_circuito_pdf,
-            excel_template=ExcelTemplateConfig(template_path=BASE_DIR / "template.xlsx"),
+            excel_template=ExcelTemplateConfig(
+                template_path=BASE_DIR / "template.xlsx"),
         )
         draft_manager.insert_db = self._insert_db
         draft_manager.generate_pdf = self._generate_pdf
@@ -118,13 +119,30 @@ class Api:
         session = draft_manager.load_session()
         return str(session.get("matricula", "")).strip()
 
+    def _get_local_settings(self):
+        try:
+            settings = draft_manager.load_settings()
+            return settings if isinstance(settings, dict) else {}
+        except Exception:
+            return {}
+
+    def _get_sharepoint_root_configurado(self):
+        settings = self._get_local_settings()
+        sharepoint_local = str(settings.get("sharepoint_root", "")).strip()
+        if sharepoint_local:
+            return sharepoint_local
+
+        config = load_config()
+        return str(config.get("sharepoint_root", "")).strip()
+
     def _get_equipment_id(self, dados):
         equipment_id = self._valor_texto(dados, "Numero", "") or self._valor_texto(
             dados, "Religador", ""
         )
         equipment_id = str(equipment_id).strip()
         if not equipment_id:
-            raise ValueError("Número do equipamento é obrigatório para SAVE/PUBLISH.")
+            raise ValueError(
+                "Número do equipamento é obrigatório para SAVE/PUBLISH.")
         return equipment_id
 
     def _inferir_tipo_por_circuito(self, circuito):
@@ -180,12 +198,14 @@ class Api:
         ultimo_erro = None
         for encoding in ("utf-8-sig", "utf-8", "latin-1"):
             try:
-                df = pd.read_csv(CATALOGO_CONSULTA_CSV, dtype=str, encoding=encoding)
+                df = pd.read_csv(CATALOGO_CONSULTA_CSV,
+                                 dtype=str, encoding=encoding)
                 break
             except UnicodeDecodeError as erro:
                 ultimo_erro = erro
         else:
-            raise ultimo_erro or UnicodeDecodeError("csv", b"", 0, 1, "Falha ao ler CSV")
+            raise ultimo_erro or UnicodeDecodeError(
+                "csv", b"", 0, 1, "Falha ao ler CSV")
 
         df = df.fillna("")
         regionais_map = {}
@@ -194,7 +214,8 @@ class Api:
             regional = self._valor_texto(registro, "Regional", "")
             subestacao = self._valor_texto(registro, "Subestacao", "")
             circuito_final = self._valor_texto(registro, "Circuito", "")
-            abreviacao = circuito_final.split("-", 1)[0].strip() or circuito_final
+            abreviacao = circuito_final.split(
+                "-", 1)[0].strip() or circuito_final
 
             if not (regional and subestacao and circuito_final and abreviacao):
                 continue
@@ -326,7 +347,8 @@ class Api:
                 parametros[param_nome] = valor
 
             condicoes_identificacao, parametros_identificacao = (
-                self._condicoes_identificacao_registro(colunas_tabela, registro)
+                self._condicoes_identificacao_registro(
+                    colunas_tabela, registro)
             )
 
             # NumeroAjuste sozinho nao identifica a linha com seguranca.
@@ -356,7 +378,8 @@ class Api:
                 condicoes.append(
                     f"{self._expressao_coluna_delete(coluna)} = :{param_nome}"
                 )
-                parametros[param_nome] = str(valor) if coluna in self.COLUNAS_TEXTO_LEGADO else valor
+                parametros[param_nome] = str(
+                    valor) if coluna in self.COLUNAS_TEXTO_LEGADO else valor
 
         return condicoes, parametros
 
@@ -415,7 +438,8 @@ class Api:
         if "NumeroAjuste" not in colunas_tabela:
             return ""
 
-        condicoes, parametros = self._montar_condicoes_equipamento(colunas_tabela, dados)
+        condicoes, parametros = self._montar_condicoes_equipamento(
+            colunas_tabela, dados)
         where_sql = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
         sql = f"""
         SELECT COALESCE(MAX(TRY_CONVERT(int, [NumeroAjuste])), 0) + 1 AS proximo
@@ -430,7 +454,8 @@ class Api:
         if "NumeroAjuste" not in colunas_tabela:
             return False
 
-        numero_ajuste = self._normalizar_numero_ajuste(dados.get("NumeroAjuste"))
+        numero_ajuste = self._normalizar_numero_ajuste(
+            dados.get("NumeroAjuste"))
         if not numero_ajuste:
             return False
 
@@ -511,14 +536,16 @@ class Api:
             data_inicio = datetime.strptime(
                 filtros_normalizados["data_inicio"], "%Y-%m-%d"
             ).strftime("%Y-%m-%d")
-            condicoes.append("TRY_CONVERT(date, [Data_Emissao], 103) >= :data_inicio")
+            condicoes.append(
+                "TRY_CONVERT(date, [Data_Emissao], 103) >= :data_inicio")
             parametros["data_inicio"] = data_inicio
 
         if filtros_normalizados["data_fim"]:
             data_fim = datetime.strptime(
                 filtros_normalizados["data_fim"], "%Y-%m-%d"
             ).strftime("%Y-%m-%d")
-            condicoes.append("TRY_CONVERT(date, [Data_Emissao], 103) <= :data_fim")
+            condicoes.append(
+                "TRY_CONVERT(date, [Data_Emissao], 103) <= :data_fim")
             parametros["data_fim"] = data_fim
 
     def _montar_where_filtros_consulta(self, filtros):
@@ -566,7 +593,8 @@ class Api:
                 nome_circuito = circuito_item.get("nome", "")
                 abreviacao = circuito_item.get("abreviacao", "")
                 nome_normalizado = self._normalizar_texto_busca(nome_circuito)
-                abreviacao_normalizada = self._normalizar_texto_busca(abreviacao)
+                abreviacao_normalizada = self._normalizar_texto_busca(
+                    abreviacao)
 
                 if (
                     circuito_normalizado == nome_normalizado
@@ -581,7 +609,8 @@ class Api:
                     }
 
                 for circuito_final in circuito_item.get("circuitos_finais", []):
-                    circuito_final_normalizado = self._normalizar_texto_busca(circuito_final)
+                    circuito_final_normalizado = self._normalizar_texto_busca(
+                        circuito_final)
                     if (
                         circuito_normalizado == circuito_final_normalizado
                         or self._texto_comeca_com_chave_circuito(
@@ -664,7 +693,8 @@ class Api:
             tipo = self._valor_texto(registro, "Tipo", "")
             numero = self._valor_texto(registro, "Numero", "")
             nome = tipo or marca or f"Equipamento {indice + 1}"
-            codigo_padrao = " - ".join([parte for parte in [marca, numero] if parte]) or f"REG-{indice + 1}"
+            codigo_padrao = " - ".join([parte for parte in [marca,
+                                       numero] if parte]) or f"REG-{indice + 1}"
             codigo = self._montar_codigo_consulta(registro, codigo_padrao)
             chave = f"{nome.lower()}::{codigo.lower()}"
 
@@ -706,7 +736,8 @@ class Api:
             parametros["regional"] = regional
 
         if circuito_final:
-            condicoes.append("CAST([Circuito] AS VARCHAR(255)) = :circuito_final")
+            condicoes.append(
+                "CAST([Circuito] AS VARCHAR(255)) = :circuito_final")
             parametros["circuito_final"] = circuito_final
         elif circuito and abreviacao:
             condicoes.append(
@@ -718,7 +749,8 @@ class Api:
             condicoes.append("CAST([Circuito] AS VARCHAR(255)) LIKE :circuito")
             parametros["circuito"] = f"%{circuito}%"
         elif abreviacao:
-            condicoes.append("CAST([Circuito] AS VARCHAR(255)) LIKE :abreviacao")
+            condicoes.append(
+                "CAST([Circuito] AS VARCHAR(255)) LIKE :abreviacao")
             parametros["abreviacao"] = f"%{abreviacao}%"
 
         where_sql = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
@@ -787,9 +819,11 @@ class Api:
             """
 
             with self._get_conn() as conn:
-                resultado = conn.execute(text(sql), {"regional": regional}).fetchall()
+                resultado = conn.execute(
+                    text(sql), {"regional": regional}).fetchall()
 
-            circuitos = [str(linha[0]).strip() for linha in resultado if linha[0]]
+            circuitos = [str(linha[0]).strip()
+                         for linha in resultado if linha[0]]
             return {"status": "ok", "circuitos": circuitos, "mensagem": ""}
         except Exception as e:
             return {"status": "erro", "circuitos": [], "mensagem": str(e)}
@@ -807,7 +841,8 @@ class Api:
             with self._get_conn() as conn:
                 resultado = conn.execute(text(sql)).fetchall()
 
-            regionais = [str(linha[0]).strip() for linha in resultado if linha[0]]
+            regionais = [str(linha[0]).strip()
+                         for linha in resultado if linha[0]]
             return {"status": "ok", "regionais": regionais, "mensagem": ""}
         except Exception as e:
             return {"status": "erro", "regionais": [], "mensagem": str(e)}
@@ -829,9 +864,11 @@ class Api:
             regionais_map = {}
 
             for indice, registro in enumerate(registros):
-                regional = self._valor_texto(registro, "Regional", "Sem regional")
+                regional = self._valor_texto(
+                    registro, "Regional", "Sem regional")
                 subestacao = self._normalizar_subestacao(registro)
-                circuito = self._valor_texto(registro, "Circuito", "Sem circuito")
+                circuito = self._valor_texto(
+                    registro, "Circuito", "Sem circuito")
                 marca = self._valor_texto(registro, "Marca", "Sem marca")
                 tipo = self._valor_texto(registro, "Tipo", "")
                 numero = self._valor_texto(registro, "Numero", "")
@@ -945,7 +982,8 @@ class Api:
 
     def get_opcoes_filtros(self, filtros=None):
         try:
-            filtros_normalizados, _, _ = self._montar_where_filtros_consulta(filtros)
+            filtros_normalizados, _, _ = self._montar_where_filtros_consulta(
+                filtros)
             opcoes = {}
 
             with self._get_conn() as conn:
@@ -984,7 +1022,8 @@ class Api:
                         """
 
                     resultado = conn.execute(text(sql), parametros).fetchall()
-                    opcoes[chave] = [linha[0] for linha in resultado if linha[0]]
+                    opcoes[chave] = [linha[0]
+                                     for linha in resultado if linha[0]]
 
             return {"status": "ok", "opcoes": opcoes, "mensagem": ""}
         except Exception as e:
@@ -1005,8 +1044,10 @@ class Api:
     def get_historico(self, filtros=None):
         try:
             filtros = filtros or {}
-            _, where_sql, parametros = self._montar_where_filtros_consulta(filtros)
-            pagina, tamanho_pagina = self._normalizar_paginacao_historico(filtros)
+            _, where_sql, parametros = self._montar_where_filtros_consulta(
+                filtros)
+            pagina, tamanho_pagina = self._normalizar_paginacao_historico(
+                filtros)
             sql_total = f"""
             SELECT COUNT(*) AS total
             FROM {TABELA_HISTORICO}
@@ -1045,7 +1086,8 @@ class Api:
                 """
 
                 resultado = conn.execute(text(sql), parametros_consulta)
-                colunas, registros = self._serializar_linhas_resultado(resultado)
+                colunas, registros = self._serializar_linhas_resultado(
+                    resultado)
 
             return {
                 "colunas": colunas,
@@ -1120,7 +1162,8 @@ class Api:
                             conn, colunas_tabela, dados_salvar
                         )
 
-                colunas = ", ".join(f"[{coluna}]" for coluna in dados_salvar.keys())
+                colunas = ", ".join(
+                    f"[{coluna}]" for coluna in dados_salvar.keys())
                 parametros = {
                     f"valor_{indice}": valor
                     for indice, valor in enumerate(dados_salvar.values())
@@ -1149,7 +1192,8 @@ class Api:
         config = load_config()
         sharepoint_root = str(config.get("sharepoint_root", "")).strip()
         if not sharepoint_root:
-            raise ValueError("sharepoint_root não configurado em db_config.json.")
+            raise ValueError(
+                "sharepoint_root não configurado em db_config.json.")
 
         origem = Path(path)
         if not origem.exists():
@@ -1158,8 +1202,66 @@ class Api:
         destino_dir = Path(sharepoint_root)
         destino_dir.mkdir(parents=True, exist_ok=True)
         destino = destino_dir / origem.name
+        if origem.resolve() == destino.resolve():
+            return str(origem)
         shutil.copy2(origem, destino)
         return str(destino)
+
+    def _upload_sharepoint(self, path):
+        sharepoint_root = self._get_sharepoint_root_configurado()
+        if not sharepoint_root:
+            raise ValueError(
+                "Pasta local do SharePoint/OneDrive nÃ£o configurada.")
+
+        origem = Path(path)
+        if not origem.exists():
+            raise FileNotFoundError(f"Arquivo PDF nÃ£o encontrado: {origem}")
+
+        destino_dir = Path(sharepoint_root)
+        destino_dir.mkdir(parents=True, exist_ok=True)
+        destino = destino_dir / origem.name
+        if origem.resolve() == destino.resolve():
+            return str(origem)
+        shutil.copy2(origem, destino)
+        return str(destino)
+
+    def get_settings(self):
+        try:
+            settings = self._get_local_settings()
+            config = load_config()
+            sharepoint_local = str(settings.get("sharepoint_root", "")).strip()
+            sharepoint_padrao = str(config.get("sharepoint_root", "")).strip()
+            return {
+                "status": "ok",
+                "settings": {
+                    "sharepoint_root": sharepoint_local,
+                    "sharepoint_root_default": sharepoint_padrao,
+                    "sharepoint_root_effective": sharepoint_local or sharepoint_padrao,
+                },
+            }
+        except Exception as e:
+            return {"status": "erro", "mensagem": f"Erro ao carregar configuraÃ§Ãµes: {str(e)}"}
+
+    def save_settings(self, settings):
+        try:
+            payload = settings if isinstance(settings, dict) else {}
+            sharepoint_root = str(payload.get("sharepoint_root", "")).strip()
+            salvas = draft_manager.save_settings(
+                {"sharepoint_root": sharepoint_root})
+            config = load_config()
+            sharepoint_padrao = str(config.get("sharepoint_root", "")).strip()
+            sharepoint_local = str(salvas.get("sharepoint_root", "")).strip()
+            return {
+                "status": "ok",
+                "mensagem": "Configurações salvas com sucesso.",
+                "settings": {
+                    "sharepoint_root": sharepoint_local,
+                    "sharepoint_root_default": sharepoint_padrao,
+                    "sharepoint_root_effective": sharepoint_local or sharepoint_padrao,
+                },
+            }
+        except Exception as e:
+            return {"status": "erro", "mensagem": f"Erro ao salvar configuraÃ§Ãµes: {str(e)}"}
 
     def get_session(self):
         try:
@@ -1255,7 +1357,8 @@ class Api:
                                 conn, colunas_tabela, dados_salvar
                             )
 
-                    colunas = ", ".join(f"[{coluna}]" for coluna in dados_salvar.keys())
+                    colunas = ", ".join(
+                        f"[{coluna}]" for coluna in dados_salvar.keys())
                     parametros = {
                         f"valor_{indice}": valor
                         for indice, valor in enumerate(dados_salvar.values())
@@ -1322,8 +1425,15 @@ class Api:
     def publicar(self, dados):
         try:
             matricula = self._get_matricula_session()
-            equipment_id = self._get_equipment_id(dados or {})
-            resultado = draft_manager.publish_document(matricula, equipment_id)
+            dados = dict(dados or {})
+            equipment_id = self._get_equipment_id(dados)
+            dados_publicacao = None
+            if any(chave != "Numero" for chave in dados.keys()):
+                dados_publicacao = self._prepare_dados_salvar(dados)
+
+            resultado = draft_manager.publish_document(
+                matricula, equipment_id, dados_publicacao
+            )
             caminho_pdf = str(resultado.get("pdf_path", "")).strip()
             sharepoint_path = str(resultado.get("upload_result", "")).strip()
             mensagem = "Publicado com sucesso."

@@ -18,6 +18,7 @@ except ImportError:
     DispatchEx = None
 
 from db import load_config
+from draft_manager import load_settings
 
 DEFAULT_EXCEL_CELL_MAP = {
     "Religador": "B7",
@@ -59,11 +60,26 @@ DEFAULT_EXCEL_CELL_MAP = {
     "Observacoes": "B35",
 }
 
+SECC_EXCEL_CELL_MAP = {
+    "Religador": "B7",
+    "Circuito": "E7",
+    "TensaoPdf": "H7",
+    "Marca": "B8",
+    "Data_Emissao": "H8",
+    "Engenheiro": "B9",
+    "Pickup_50P": "C13",
+    "Tempo_Minimo_50P": "C14",
+    "Pickup_50N": "H13",
+    "Tempo_Minimo_50N": "H14",
+    "Observacoes": "B22",
+}
+
 
 @dataclass
 class ExcelTemplateConfig:
     template_path: Path
     sheet_name: str = "pdf fim"
+    print_area: str = "A1:J44"
     cell_map: dict[str, str] = field(
         default_factory=lambda: DEFAULT_EXCEL_CELL_MAP.copy()
     )
@@ -84,6 +100,11 @@ class PdfService:
         self._obter_nome_circuito_pdf = obter_nome_circuito_pdf
         self.excel_template = excel_template or ExcelTemplateConfig(
             template_path=self.base_dir / "template.xlsx"
+        )
+        self.secc_excel_template = ExcelTemplateConfig(
+            template_path=self.base_dir / "tempalte_secc.xlsx",
+            print_area="A1:J31",
+            cell_map=SECC_EXCEL_CELL_MAP.copy(),
         )
 
     def _normalizar_nome_arquivo(self, valor, fallback):
@@ -148,10 +169,13 @@ class PdfService:
 
     def _obter_roots_pdf(self):
         config = load_config()
+        settings = load_settings()
         pdf_root = Path(
             str(config.get("pdf_root", "")).strip() or (self.base_dir / "pdfs")
         )
-        sharepoint_root = str(config.get("sharepoint_root", "")).strip()
+        sharepoint_root = str(settings.get("sharepoint_root", "")).strip() or str(
+            config.get("sharepoint_root", "")
+        ).strip()
         return pdf_root, Path(sharepoint_root) if sharepoint_root else None
 
     def _montar_pasta_circuito(self, root, dados):
@@ -187,21 +211,32 @@ class PdfService:
             "Microsoft Edge ou Google Chrome nÃ£o encontrado para gerar o PDF."
         )
 
-    def _preencher_template_excel(self, worksheet, dados):
-        for campo, celula in self.excel_template.cell_map.items():
+    def _obter_modo_formulario(self, dados):
+        return str(dados.get("ModoFormulario", dados.get("Modo", ""))).strip().lower()
+
+    def _obter_config_excel(self, dados):
+        return (
+            self.secc_excel_template
+            if self._obter_modo_formulario(dados) == "seccionalizador"
+            else self.excel_template
+        )
+
+    def _preencher_template_excel(self, worksheet, dados, config):
+        for campo, celula in config.cell_map.items():
             if not celula:
                 continue
             worksheet[celula] = self._obter_valor_campo_excel(campo, dados)
 
-        self._ajustar_layout_impressao_excel(worksheet)
+        self._ajustar_layout_impressao_excel(worksheet, config)
 
-    def _ajustar_layout_impressao_excel(self, worksheet):
-        worksheet.print_area = "A1:J44"
+    def _ajustar_layout_impressao_excel(self, worksheet, config):
+        worksheet.print_area = config.print_area
         worksheet.page_setup.orientation = "landscape"
         worksheet.page_setup.paperSize = worksheet.PAPERSIZE_A4
         worksheet.page_setup.fitToWidth = 1
         worksheet.page_setup.fitToHeight = 1
         worksheet.sheet_properties.pageSetUpPr.fitToPage = True
+        worksheet.print_options.horizontalCentered = True
         worksheet.page_margins = PageMargins(
             left=0.2,
             right=0.2,
@@ -235,6 +270,15 @@ class PdfService:
         engenheiro = self._valor_texto(dados, "Engenheiro", "")
         data_emissao = self._valor_texto(dados, "Data_Emissao", "")
 
+        if self._obter_modo_formulario(dados) == "seccionalizador":
+            linhas = [
+                observacoes or "",
+                "",
+                f"Executado: {engenheiro}",
+                f"Data: {data_emissao}",
+            ]
+            return "\n".join(linhas).strip()
+
         linhas = [
             "Single Shot: Ativo conforme os ajustes parametrizados na operacao 01.",
             "Linha Viva: Parametrizar para fase e neutro, curva 101, multiplicador de tempo em 0,01.",
@@ -247,7 +291,11 @@ class PdfService:
         return "\n".join(linhas).strip()
 
     def gerar_pdf_excel(self, dados):
-        return self._gerar_pdf_excel_em_destino(dados, self.base_dir / "pdfs")
+        pdf_root, sharepoint_root = self._obter_roots_pdf()
+        return self._gerar_pdf_excel_em_destino(
+            dados,
+            sharepoint_root or pdf_root,
+        )
 
     def gerar_pdf_excel_desktop(self, dados):
         return self._gerar_pdf_excel_em_destino(dados, self._obter_desktop_dir())
@@ -276,7 +324,8 @@ class PdfService:
         return home / "Desktop"
 
     def _gerar_pdf_excel_em_destino(self, dados, destino_dir):
-        template_path = self.excel_template.template_path
+        config = self._obter_config_excel(dados)
+        template_path = config.template_path
         if not template_path.exists():
             raise FileNotFoundError(f"Template Excel nÃ£o encontrado: {template_path}")
 
@@ -302,12 +351,12 @@ class PdfService:
 
         workbook = load_workbook(template_path)
         try:
-            if self.excel_template.sheet_name in workbook.sheetnames:
-                worksheet = workbook[self.excel_template.sheet_name]
+            if config.sheet_name in workbook.sheetnames:
+                worksheet = workbook[config.sheet_name]
             else:
                 worksheet = workbook[workbook.sheetnames[0]]
 
-            self._preencher_template_excel(worksheet, dados)
+            self._preencher_template_excel(worksheet, dados, config)
             workbook.save(arquivo_excel_temporario)
         finally:
             workbook.close()
