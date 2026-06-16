@@ -17,6 +17,7 @@ except ImportError:
     pythoncom = None
     DispatchEx = None
 
+from app_paths import resource_path
 from db import load_config
 from draft_manager import load_settings
 
@@ -99,10 +100,12 @@ class PdfService:
         self._obter_regional_pdf = obter_regional_pdf
         self._obter_nome_circuito_pdf = obter_nome_circuito_pdf
         self.excel_template = excel_template or ExcelTemplateConfig(
-            template_path=self.base_dir / "template.xlsx"
+            template_path=resource_path("assets", "templates", "template.xlsx")
         )
         self.secc_excel_template = ExcelTemplateConfig(
-            template_path=self.base_dir / "tempalte_secc.xlsx",
+            template_path=resource_path(
+                "assets", "templates", "tempalte_secc.xlsx"
+            ),
             print_area="A1:J31",
             cell_map=SECC_EXCEL_CELL_MAP.copy(),
         )

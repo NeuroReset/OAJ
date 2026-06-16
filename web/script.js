@@ -62,10 +62,11 @@ let historicoRegistros = [];
 let historicoSelecionados = new Set();
 let historicoEstaArrastando = false;
 let historicoRenderToken = 0;
+let historicoRequestToken = 0;
 let historicoPaginaAtual = 1;
 let historicoTotalPaginas = 0;
 let historicoTotalRegistros = 0;
-let historicoTamanhoPagina = 100;
+let historicoTamanhoPagina = 50;
 const HISTORICO_FILTROS_STORAGE_KEY = "oaj.historico.filtros";
 const SESSION_MATRICULA_STORAGE_KEY = "oaj.session.matricula";
 const CONSULTA_ESTADO_STORAGE_KEY = "oaj.consulta.estado";
@@ -97,6 +98,8 @@ let draftsSalvos = [];
 let toastTimeoutId = 0;
 let confirmResolverAtual = null;
 let loadingCounter = 0;
+let startupLoadingActive = true;
+let publishProgressPollId = 0;
 let appSettings = {
     sharepoint_root: "",
     sharepoint_root_default: "",
@@ -284,8 +287,13 @@ function iniciarCarregamento(mensagem = "Carregando...") {
     loadingCounter += 1;
     const overlay = document.getElementById("app-loading-overlay");
     const message = document.getElementById("app-loading-message");
+    const bar = document.getElementById("app-loading-bar");
     if (message) {
         message.textContent = mensagem;
+    }
+    if (bar) {
+        bar.style.width = "18%";
+        bar.classList.remove("animate-pulse");
     }
     if (overlay) {
         overlay.classList.remove("hidden");
@@ -293,13 +301,30 @@ function iniciarCarregamento(mensagem = "Carregando...") {
     }
 }
 
+function atualizarCarregamento(mensagem, progresso) {
+    const message = document.getElementById("app-loading-message");
+    const bar = document.getElementById("app-loading-bar");
+    if (message && mensagem) {
+        message.textContent = mensagem;
+    }
+    if (bar && Number.isFinite(progresso)) {
+        const valor = Math.max(6, Math.min(100, Number(progresso)));
+        bar.style.width = `${valor}%`;
+    }
+}
+
 function finalizarCarregamento() {
     loadingCounter = Math.max(0, loadingCounter - 1);
-    if (loadingCounter > 0) {
+    if (loadingCounter > 0 || startupLoadingActive) {
         return;
     }
 
     const overlay = document.getElementById("app-loading-overlay");
+    const bar = document.getElementById("app-loading-bar");
+    if (bar) {
+        bar.style.width = "50%";
+        bar.classList.add("animate-pulse");
+    }
     if (overlay) {
         overlay.classList.add("hidden");
         overlay.classList.remove("flex");
@@ -320,7 +345,6 @@ const API_METHODS_COM_OVERLAY = new Set([
     "set_session",
     "delete_draft",
     "salvar",
-    "publicar",
     "deletar_historico",
 ]);
 
@@ -350,6 +374,38 @@ async function callApi(method, ...args) {
         mensagens[method] || "Processando...",
         () => window.pywebview.api[method](...args),
     );
+}
+
+async function executarPublicacaoComProgresso(payload) {
+    iniciarCarregamento("Preparando publicação...");
+    atualizarCarregamento("Preparando publicação...", 8);
+
+    publishProgressPollId = window.setInterval(async () => {
+        try {
+            const status = await window.pywebview.api.get_publish_status();
+            if (!status) {
+                return;
+            }
+            atualizarCarregamento(
+                status.message || "Publicando...",
+                Number(status.progress || 8),
+            );
+        } catch (erro) {
+            console.warn("Falha ao consultar progresso da publicação.", erro);
+        }
+    }, 350);
+
+    try {
+        const resposta = await window.pywebview.api.publicar(payload);
+        atualizarCarregamento("Finalizando publicação...", 100);
+        return resposta;
+    } finally {
+        if (publishProgressPollId) {
+            window.clearInterval(publishProgressPollId);
+            publishProgressPollId = 0;
+        }
+        window.setTimeout(() => finalizarCarregamento(), 180);
+    }
 }
 
 function renderizarConfiguracoes() {
@@ -706,6 +762,8 @@ function alternarTela(aba) {
         botao.classList.toggle("text-blue-600", ativa && !botao.classList.contains("tab-pill"));
     });
 
+    atualizarVisibilidadeAcoesGlobais();
+
     if (aba === "historico") {
         carregarHistorico();
     }
@@ -723,6 +781,78 @@ function alternarTela(aba) {
     if (aba === "configuracoes") {
         carregarConfiguracoes();
     }
+}
+
+async function alternarTelaInicial(aba) {
+    const abaAnterior = abaAtiva;
+    abaAtiva = aba;
+    persistirAbaAtiva();
+
+    document.querySelectorAll("[data-screen]").forEach((section) => {
+        const ativa = section.dataset.screen === aba;
+        section.classList.toggle("hidden", !ativa);
+    });
+
+    document.querySelectorAll(".tab-trigger").forEach((botao) => {
+        const ativa = botao.dataset.tab === aba;
+        botao.classList.toggle("text-primary", ativa);
+        botao.classList.toggle("font-bold", ativa);
+        botao.classList.toggle("tab-pill-active", ativa);
+        botao.classList.toggle("bg-blue-50", ativa && !botao.classList.contains("tab-pill"));
+        botao.classList.toggle("text-slate-500", !ativa);
+        botao.classList.toggle("text-blue-600", ativa && !botao.classList.contains("tab-pill"));
+    });
+
+    atualizarVisibilidadeAcoesGlobais();
+
+    if (aba === "historico") {
+        await carregarHistorico();
+    }
+
+    if (aba === "salvos") {
+        await carregarDraftsSalvos();
+    }
+
+    if (aba === "consulta") {
+        await inicializarConsulta();
+    } else if (abaAnterior === "consulta") {
+        resetarEstadoConsulta();
+    }
+
+    if (aba === "configuracoes") {
+        await carregarConfiguracoes();
+    }
+}
+
+function atualizarVisibilidadeAcoesGlobais() {
+    const exibirAcoes = abaAtiva === "inicio";
+    const botoes = [
+        document.getElementById("header-salvar-btn"),
+        document.getElementById("header-publicar-btn"),
+        document.getElementById("mobile-salvar-btn"),
+    ];
+
+    botoes.forEach((botao) => {
+        if (!botao) {
+            return;
+        }
+        botao.hidden = !exibirAcoes;
+    });
+}
+
+async function sinalizarAppPronto() {
+    try {
+        if (window.pywebview?.api?.app_ready) {
+            await window.pywebview.api.app_ready();
+        }
+    } catch (erro) {
+        console.error("Falha ao sinalizar app pronto.", erro);
+    }
+}
+
+function finalizarInicializacaoApp() {
+    startupLoadingActive = false;
+    finalizarCarregamento();
 }
 
 function obterStatusLockDraft(draft) {
@@ -1481,22 +1611,26 @@ function renderizarTabelaHistorico(colunas, registros) {
 
 async function carregarHistorico() {
     const body = document.getElementById("historico-body");
+    const tokenRequisicao = ++historicoRequestToken;
     historicoRenderToken += 1;
     historicoSelecionados = new Set();
     historicoRegistros = [];
     atualizarEstadoSelecaoHistorico();
-    if (body) {
+    if (body && !body.querySelector("tr[data-indice]")) {
         body.innerHTML = `<tr><td class="px-4 py-6 text-center text-on-surface-variant" colspan="${HEADER_ORDEM_AJUSTE.length + 1}">Carregando...</td></tr>`;
     }
     atualizarControlesPaginacaoHistorico();
 
     try {
         const resposta = await callApi("get_historico", obterFiltrosHistorico());
+        if (tokenRequisicao !== historicoRequestToken) {
+            return;
+        }
         const colunas = resposta?.colunas?.length ? resposta.colunas : HEADER_ORDEM_AJUSTE;
         const registros = resposta?.registros || [];
         const mensagem = resposta?.mensagem || "";
         historicoPaginaAtual = Number(resposta?.pagina || 1);
-        historicoTamanhoPagina = Number(resposta?.tamanho_pagina || historicoTamanhoPagina || 100);
+        historicoTamanhoPagina = Number(resposta?.tamanho_pagina || historicoTamanhoPagina || 50);
         historicoTotalRegistros = Number(resposta?.total_registros || 0);
         historicoTotalPaginas = Number(resposta?.total_paginas || 0);
 
@@ -1509,6 +1643,9 @@ async function carregarHistorico() {
             body.innerHTML = `<tr><td class="px-4 py-6 text-center text-on-surface-variant" colspan="${(colunas.length || 1) + 1}">${mensagem}</td></tr>`;
         }
     } catch (erro) {
+        if (tokenRequisicao !== historicoRequestToken) {
+            return;
+        }
         historicoTotalRegistros = 0;
         historicoTotalPaginas = 0;
         atualizarControlesPaginacaoHistorico();
@@ -2028,7 +2165,7 @@ async function abrirDraftSalvo(equipmentId) {
 async function publicarDraftSalvo(equipmentId) {
     try {
         await garantirSessao();
-        const resposta = await callApi("publicar", { Numero: equipmentId });
+        const resposta = await executarPublicacaoComProgresso({ Numero: equipmentId });
         if (resposta?.status === "erro") {
             throw new Error(resposta?.mensagem || "Falha ao publicar rascunho.");
         }
@@ -2174,8 +2311,9 @@ async function publicar() {
             return;
         }
 
+        dados.PdfHtml = montarHtmlPdfFront();
         await garantirSessao();
-        const res = await callApi("publicar", dados);
+        const res = await executarPublicacaoComProgresso(dados);
         if (res?.status === "erro") {
             mostrarToast(res?.mensagem || "Falha ao publicar.", "erro");
             return;
@@ -2195,7 +2333,12 @@ async function publicar() {
     }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
+    const startupMessage = document.getElementById("app-loading-message");
+    if (startupMessage) {
+        startupMessage.textContent = "Carregando sessão e preparando a interface...";
+    }
+
     const abaPersistida = carregarAbaAtivaPersistida();
     definirModoFormulario(window.localStorage?.getItem(MODO_FORMULARIO_STORAGE_KEY) || "");
     if (abaPersistida === "consulta") {
@@ -2203,7 +2346,6 @@ document.addEventListener("DOMContentLoaded", () => {
         abaAtiva = "consulta";
     }
 
-    sincronizarSessaoAtiva();
     historicoFiltros = carregarFiltrosHistoricoPersistidos();
     aplicarFiltrosHistoricoNaTela();
     renderizarCabecalhoHistorico(HEADER_ORDEM_AJUSTE);
@@ -2274,7 +2416,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     document.getElementById("historico-tamanho-pagina")?.addEventListener("change", (evento) => {
-        historicoTamanhoPagina = Number(evento.target.value || 100);
+        historicoTamanhoPagina = Number(evento.target.value || 50);
         historicoPaginaAtual = 1;
         carregarHistorico();
     });
@@ -2369,9 +2511,15 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    if (abaPersistida === "configuracoes") {
-        alternarTela("configuracoes");
-    } else {
-        alternarTela(abaPersistida === "consulta" ? "consulta" : "inicio");
+    try {
+        await sincronizarSessaoAtiva();
+
+        if (abaPersistida === "configuracoes") {
+            await alternarTelaInicial("configuracoes");
+        } else {
+            await alternarTelaInicial(abaPersistida === "consulta" ? "consulta" : "inicio");
+        }
+    } finally {
+        finalizarInicializacaoApp();
     }
 });

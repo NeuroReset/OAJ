@@ -2,19 +2,39 @@ import json
 from pathlib import Path
 
 from sqlalchemy import URL, create_engine
+from app_paths import app_root, bundled_root, first_existing_path
 
-BASE_DIR = Path(__file__).resolve().parent
-CONFIG_PATH = BASE_DIR / "db_config.json"
+BASE_DIR = app_root()
 _ENGINE = None
 
 
+def get_config_path():
+    candidates = [
+        BASE_DIR / "db_config.json",
+        Path.cwd() / "db_config.json",
+        bundled_root() / "db_config.json",
+    ]
+    return first_existing_path(*candidates)
+
+
+def _searched_config_paths():
+    return [
+        BASE_DIR / "db_config.json",
+        Path.cwd() / "db_config.json",
+        bundled_root() / "db_config.json",
+    ]
+
+
 def load_config():
-    if not CONFIG_PATH.exists():
+    config_path = get_config_path()
+    if not config_path.exists():
+        searched_paths = [str(path) for path in _searched_config_paths()]
         raise FileNotFoundError(
-            "Arquivo db_config.json n?o encontrado. Crie-o a partir de db_config.example.json."
+            "Arquivo db_config.json nao encontrado. Caminhos verificados: "
+            + ", ".join(searched_paths)
         )
 
-    with CONFIG_PATH.open("r", encoding="utf-8") as file:
+    with config_path.open("r", encoding="utf-8") as file:
         return json.load(file)
 
 
@@ -25,7 +45,7 @@ def get_credentials():
 
     if missing_keys:
         raise ValueError(
-            "As seguintes chaves n?o foram preenchidas em db_config.json: "
+            "As seguintes chaves nao foram preenchidas em db_config.json: "
             + ", ".join(missing_keys)
         )
 
@@ -37,23 +57,37 @@ def get_engine():
 
     if _ENGINE is None:
         server, database, user, password = get_credentials()
-        connection_url = URL.create(
-            "mssql+pyodbc",
-            username=user,
-            password=password,
-            host=server,
-            port=1433,
-            database=database,
-            query={
-                "driver": "ODBC Driver 17 for SQL Server",
-                "Encrypt": "yes",
-                "TrustServerCertificate": "yes",
-            },
-        )
-        _ENGINE = create_engine(connection_url)
+        try:
+            connection_url = URL.create(
+                "mssql+pyodbc",
+                username=user,
+                password=password,
+                host=server,
+                port=1433,
+                database=database,
+                query={
+                    "driver": "ODBC Driver 17 for SQL Server",
+                    "Encrypt": "yes",
+                    "TrustServerCertificate": "yes",
+                },
+            )
+            _ENGINE = create_engine(connection_url)
+        except Exception as exc:
+            config_path = get_config_path()
+            raise RuntimeError(
+                "Falha ao inicializar conexao com o banco usando "
+                f"{config_path}: {exc}"
+            ) from exc
 
     return _ENGINE
 
 
 def get_conn():
-    return get_engine().connect()
+    try:
+        return get_engine().connect()
+    except Exception as exc:
+        config_path = get_config_path()
+        raise RuntimeError(
+            "Falha ao conectar no banco usando "
+            f"{config_path}: {exc}"
+        ) from exc

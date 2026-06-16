@@ -1,20 +1,212 @@
 import shutil
+import ctypes
+import tkinter as tk
 import unicodedata
 from datetime import datetime
 from pathlib import Path
 
-import pandas as pd
-import webview
-from sqlalchemy import text
-
-from catalogo import CATALOGO_REGIONAIS_CIRCUITOS
-import draft_manager
-from db import get_conn, load_config
-from pdf_service import ExcelTemplateConfig, PdfService
+from app_paths import app_root, bundled_root, first_existing_path, resource_path
 
 TABELA_HISTORICO = "dbo.tbl_oaj"
-BASE_DIR = Path(__file__).resolve().parent
-CATALOGO_CONSULTA_CSV = BASE_DIR / "tblSistema.csv"
+BASE_DIR = app_root()
+BUNDLED_DIR = bundled_root()
+CATALOGO_CONSULTA_CSV = first_existing_path(
+    resource_path("assets", "data", "tblSistema.csv"),
+    BASE_DIR / "tblSistema.csv",
+    BUNDLED_DIR / "tblSistema.csv",
+)
+ICON_PATH = resource_path("assets", "images", "image.ico")
+WINDOW_TITLE = "Ordem de Ajuste"
+pd = None
+webview = None
+text = None
+CATALOGO_REGIONAIS_CIRCUITOS = None
+draft_manager = None
+get_conn = None
+load_config = None
+ExcelTemplateConfig = None
+PdfService = None
+_DB_RUNTIME_READY = False
+_DRAFT_RUNTIME_READY = False
+_PANDAS_RUNTIME_READY = False
+_PDF_RUNTIME_READY = False
+
+
+def configure_windows_app_id():
+    if not hasattr(ctypes, "windll"):
+        return
+
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            "edp.oaj.desktop"
+        )
+    except Exception:
+        pass
+
+
+def bootstrap_runtime():
+    global webview
+
+    import webview as _webview
+
+    webview = _webview
+
+
+def ensure_db_runtime():
+    global text, get_conn, load_config
+    global _DB_RUNTIME_READY
+
+    if _DB_RUNTIME_READY:
+        return
+
+    from sqlalchemy import text as _text
+    from db import get_conn as _get_conn, load_config as _load_config
+
+    text = _text
+    get_conn = _get_conn
+    load_config = _load_config
+    _DB_RUNTIME_READY = True
+
+
+def ensure_draft_runtime():
+    global draft_manager
+    global _DRAFT_RUNTIME_READY
+
+    if _DRAFT_RUNTIME_READY:
+        return
+
+    import draft_manager as _draft_manager
+
+    draft_manager = _draft_manager
+    _DRAFT_RUNTIME_READY = True
+
+
+def ensure_pandas_runtime():
+    global pd
+    global _PANDAS_RUNTIME_READY
+
+    if _PANDAS_RUNTIME_READY:
+        return
+
+    import pandas as _pd
+
+    pd = _pd
+    _PANDAS_RUNTIME_READY = True
+
+
+def ensure_pdf_runtime():
+    global ExcelTemplateConfig, PdfService
+    global _PDF_RUNTIME_READY
+
+    if _PDF_RUNTIME_READY:
+        return
+
+    from pdf_service import ExcelTemplateConfig as _ExcelTemplateConfig
+    from pdf_service import PdfService as _PdfService
+
+    ExcelTemplateConfig = _ExcelTemplateConfig
+    PdfService = _PdfService
+    _PDF_RUNTIME_READY = True
+
+
+class StartupSplash:
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.overrideredirect(True)
+        self.root.attributes("-topmost", True)
+        self.root.configure(bg="#f4f7fb")
+
+        if ICON_PATH.exists():
+            try:
+                self.root.iconbitmap(default=str(ICON_PATH))
+            except Exception:
+                pass
+
+        width = 420
+        height = 220
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        pos_x = (screen_width - width) // 2
+        pos_y = (screen_height - height) // 2
+        self.root.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
+
+        frame = tk.Frame(
+            self.root,
+            bg="#ffffff",
+            bd=1,
+            highlightthickness=1,
+            highlightbackground="#d7e1ef",
+            padx=26,
+            pady=22,
+        )
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        tk.Label(
+            frame,
+            text="OAJ",
+            bg="#2f67e8",
+            fg="#ffffff",
+            width=4,
+            height=2,
+            font=("Segoe UI", 12, "bold"),
+        ).pack(anchor="w")
+
+        tk.Label(
+            frame,
+            text="Ordem de Ajuste",
+            bg="#ffffff",
+            fg="#14213d",
+            font=("Segoe UI", 18, "bold"),
+        ).pack(anchor="w", pady=(14, 0))
+
+        tk.Label(
+            frame,
+            text="Dashboard interno",
+            bg="#ffffff",
+            fg="#58739b",
+            font=("Segoe UI", 10),
+        ).pack(anchor="w", pady=(2, 16))
+
+        self.status_var = tk.StringVar(value="Iniciando...")
+        tk.Label(
+            frame,
+            textvariable=self.status_var,
+            bg="#ffffff",
+            fg="#395178",
+            font=("Segoe UI", 10, "bold"),
+        ).pack(anchor="w")
+
+        self.detail_var = tk.StringVar(value="Preparando recursos da aplicação")
+        tk.Label(
+            frame,
+            textvariable=self.detail_var,
+            bg="#ffffff",
+            fg="#7a8ca8",
+            font=("Segoe UI", 9),
+        ).pack(anchor="w", pady=(4, 14))
+
+        track = tk.Frame(frame, bg="#e6edf8", height=10)
+        track.pack(fill="x")
+        track.pack_propagate(False)
+
+        self.bar = tk.Frame(track, bg="#2f67e8", width=120)
+        self.bar.pack(fill="y", side="left")
+
+        self.root.update_idletasks()
+        self.root.update()
+
+    def step(self, status, detail, progress):
+        self.status_var.set(status)
+        self.detail_var.set(detail)
+        self.bar.configure(width=max(48, int(340 * progress)))
+        self.root.update_idletasks()
+        self.root.update()
+
+    def close(self):
+        try:
+            self.root.destroy()
+        except Exception:
+            pass
 
 
 class Api:
@@ -98,29 +290,82 @@ class Api:
     }
 
     def __init__(self):
+        self._on_app_ready = None
         self._catalogo_consulta_cache = []
         self._catalogo_consulta_cache_mtime_ns = None
-        self._pdf_service = PdfService(
-            base_dir=BASE_DIR,
-            valor_texto=self._valor_texto,
-            obter_regional_pdf=self._obter_regional_pdf,
-            obter_nome_circuito_pdf=self._obter_nome_circuito_pdf,
-            excel_template=ExcelTemplateConfig(
-                template_path=BASE_DIR / "template.xlsx"),
-        )
+        self._pdf_service = None
+        self._draft_manager_hooks_ready = False
+        self._publish_status = {
+            "active": False,
+            "stage": "idle",
+            "message": "",
+            "progress": 0,
+            "error": "",
+        }
+
+    def app_ready(self):
+        try:
+            if callable(self._on_app_ready):
+                self._on_app_ready()
+            return {"status": "ok"}
+        except Exception as e:
+            return {"status": "erro", "mensagem": str(e)}
+
+    def _get_conn(self):
+        ensure_db_runtime()
+        return get_conn()
+
+    def _load_config(self):
+        ensure_db_runtime()
+        return load_config()
+
+    def _ensure_draft_manager_hooks(self):
+        ensure_draft_runtime()
+        if self._draft_manager_hooks_ready:
+            return
+
         draft_manager.insert_db = self._insert_db
         draft_manager.generate_pdf = self._generate_pdf
         draft_manager.upload_sharepoint = self._upload_sharepoint
+        draft_manager.update_publish_status = self._update_publish_status
+        self._draft_manager_hooks_ready = True
 
-    def _get_conn(self):
-        return get_conn()
+    def _update_publish_status(
+        self, stage, message, progress, active=True, error=""
+    ):
+        self._publish_status = {
+            "active": bool(active),
+            "stage": str(stage or "").strip() or "idle",
+            "message": str(message or "").strip(),
+            "progress": max(0, min(int(progress or 0), 100)),
+            "error": str(error or "").strip(),
+        }
+
+    def get_publish_status(self):
+        return dict(self._publish_status)
+
+    def _get_pdf_service(self):
+        ensure_pdf_runtime()
+        if self._pdf_service is None:
+            self._pdf_service = PdfService(
+                base_dir=BASE_DIR,
+                valor_texto=self._valor_texto,
+                obter_regional_pdf=self._obter_regional_pdf,
+                obter_nome_circuito_pdf=self._obter_nome_circuito_pdf,
+                excel_template=ExcelTemplateConfig(
+                    template_path=resource_path("assets", "templates", "template.xlsx"),
+                ),
+            )
+        return self._pdf_service
 
     def _get_matricula_session(self):
+        ensure_draft_runtime()
         session = draft_manager.load_session()
         return str(session.get("matricula", "")).strip()
 
     def _get_local_settings(self):
         try:
+            ensure_draft_runtime()
             settings = draft_manager.load_settings()
             return settings if isinstance(settings, dict) else {}
         except Exception:
@@ -132,7 +377,7 @@ class Api:
         if sharepoint_local:
             return sharepoint_local
 
-        config = load_config()
+        config = self._load_config()
         return str(config.get("sharepoint_root", "")).strip()
 
     def _get_equipment_id(self, dados):
@@ -192,6 +437,7 @@ class Api:
         return "::".join(valores)
 
     def _ler_catalogo_consulta_csv(self):
+        ensure_pandas_runtime()
         if not CATALOGO_CONSULTA_CSV.exists():
             return []
 
@@ -663,9 +909,9 @@ class Api:
             pagina = 1
 
         try:
-            tamanho_pagina = int(filtros.get("tamanho_pagina", 100))
+            tamanho_pagina = int(filtros.get("tamanho_pagina", 50))
         except (TypeError, ValueError, AttributeError):
-            tamanho_pagina = 100
+            tamanho_pagina = 50
 
         pagina = max(1, pagina)
         tamanho_pagina = max(1, min(tamanho_pagina, 200))
@@ -1104,14 +1350,14 @@ class Api:
                 "colunas": [],
                 "registros": [],
                 "pagina": 1,
-                "tamanho_pagina": 100,
+                "tamanho_pagina": 50,
                 "total_registros": 0,
                 "total_paginas": 0,
                 "mensagem": f"Erro ao carregar: {str(e)}",
             }
 
     def gerar_pdf_excel(self, dados):
-        return self._pdf_service.gerar_pdf_excel(dados)
+        return self._get_pdf_service().gerar_pdf_excel(dados)
 
     def gerar_pdf_excel_teste(self, dados):
         try:
@@ -1122,7 +1368,7 @@ class Api:
                 if not self._valor_texto(dados, "Regional", ""):
                     dados["Regional"] = regional_inferida
 
-            caminho_pdf = self._pdf_service.gerar_pdf_excel_desktop(dados)
+            caminho_pdf = self._get_pdf_service().gerar_pdf_excel_desktop(dados)
             return {
                 "status": "ok",
                 "mensagem": "PDF de teste gerado com sucesso",
@@ -1133,7 +1379,7 @@ class Api:
             return {"status": "erro", "mensagem": f"Erro ao gerar PDF de teste: {str(e)}"}
 
     def _gerar_pdf(self, dados):
-        return self._pdf_service.gerar_pdf_navegador(dados)
+        return self._get_pdf_service().gerar_pdf_navegador(dados)
 
     def _insert_db(self, dados):
         dados = self._prepare_dados_salvar(dict(dados or {}))
@@ -1186,10 +1432,27 @@ class Api:
         }
 
     def _generate_pdf(self, dados):
-        return self.gerar_pdf_excel(self._prepare_dados_salvar(dict(dados or {})))
+        payload = self._prepare_dados_salvar(dict(dados or {}))
+        html_pdf = str(payload.get("PdfHtml", "")).strip()
+        imagem_pdf = str(payload.get("PdfImageData", "")).strip()
+
+        if html_pdf or imagem_pdf:
+            arquivos_pdf = self._get_pdf_service().gerar_pdf_navegador(payload)
+            return {
+                "pdf_path": arquivos_pdf[0] if arquivos_pdf else "",
+                "upload_result": arquivos_pdf[1] if len(arquivos_pdf) > 1 else "",
+                "arquivos_pdf": arquivos_pdf,
+            }
+
+        caminho_pdf = self.gerar_pdf_excel(payload)
+        return {
+            "pdf_path": caminho_pdf,
+            "upload_result": "",
+            "arquivos_pdf": [caminho_pdf] if caminho_pdf else [],
+        }
 
     def _upload_sharepoint(self, path):
-        config = load_config()
+        config = self._load_config()
         sharepoint_root = str(config.get("sharepoint_root", "")).strip()
         if not sharepoint_root:
             raise ValueError(
@@ -1228,7 +1491,7 @@ class Api:
     def get_settings(self):
         try:
             settings = self._get_local_settings()
-            config = load_config()
+            config = self._load_config()
             sharepoint_local = str(settings.get("sharepoint_root", "")).strip()
             sharepoint_padrao = str(config.get("sharepoint_root", "")).strip()
             return {
@@ -1244,11 +1507,12 @@ class Api:
 
     def save_settings(self, settings):
         try:
+            self._ensure_draft_manager_hooks()
             payload = settings if isinstance(settings, dict) else {}
             sharepoint_root = str(payload.get("sharepoint_root", "")).strip()
             salvas = draft_manager.save_settings(
                 {"sharepoint_root": sharepoint_root})
-            config = load_config()
+            config = self._load_config()
             sharepoint_padrao = str(config.get("sharepoint_root", "")).strip()
             sharepoint_local = str(salvas.get("sharepoint_root", "")).strip()
             return {
@@ -1265,6 +1529,7 @@ class Api:
 
     def get_session(self):
         try:
+            ensure_draft_runtime()
             session = draft_manager.load_session()
             return {"status": "ok", "matricula": session.get("matricula", "")}
         except FileNotFoundError:
@@ -1274,6 +1539,7 @@ class Api:
 
     def set_session(self, matricula):
         try:
+            ensure_draft_runtime()
             session = draft_manager.save_session(matricula)
             return {
                 "status": "ok",
@@ -1302,18 +1568,7 @@ class Api:
     def delete_draft(self, equipment_id):
         try:
             matricula = self._get_matricula_session()
-            lock_info = draft_manager.check_lock(equipment_id)
-            lock_owner = str(lock_info.get("matricula", "")).strip()
-            if lock_info.get("locked") and lock_owner not in ("", matricula):
-                return {
-                    "status": "erro",
-                    "mensagem": f"Lock pertence a outro usuÃ¡rio: {lock_owner}.",
-                }
-
             removido = draft_manager.delete_draft(matricula, equipment_id)
-            if lock_owner == matricula:
-                draft_manager.release_lock(equipment_id)
-
             if not removido:
                 return {"status": "erro", "mensagem": "Rascunho não encontrado."}
 
@@ -1396,27 +1651,14 @@ class Api:
 
     def salvar(self, dados):
         try:
+            self._ensure_draft_manager_hooks()
             matricula = self._get_matricula_session()
             dados = self._prepare_dados_salvar(dict(dados or {}))
             equipment_id = self._get_equipment_id(dados)
-
-            if not draft_manager.acquire_lock(matricula, equipment_id):
-                lock_info = draft_manager.check_lock(equipment_id)
-                lock_owner = str(lock_info.get("matricula", "")).strip()
-                if lock_owner and lock_owner != matricula:
-                    return {
-                        "status": "erro",
-                        "mensagem": f"Equipamento bloqueado por outro usuário: {lock_owner}.",
-                    }
-                return {
-                    "status": "erro",
-                    "mensagem": "Não foi possível adquirir lock para este equipamento.",
-                }
-
             draft_manager.save_draft(matricula, equipment_id, dados)
             return {
                 "status": "ok",
-                "mensagem": "Rascunho salvo localmente com sucesso.",
+                "mensagem": "Rascunho salvo com sucesso.",
                 "equipment_id": equipment_id,
             }
         except Exception as e:
@@ -1424,6 +1666,13 @@ class Api:
 
     def publicar(self, dados):
         try:
+            self._ensure_draft_manager_hooks()
+            self._update_publish_status(
+                "starting",
+                "Preparando publicação...",
+                5,
+                active=True,
+            )
             matricula = self._get_matricula_session()
             dados = dict(dados or {})
             equipment_id = self._get_equipment_id(dados)
@@ -1436,19 +1685,37 @@ class Api:
             )
             caminho_pdf = str(resultado.get("pdf_path", "")).strip()
             sharepoint_path = str(resultado.get("upload_result", "")).strip()
+            arquivos_pdf = [
+                str(arquivo).strip()
+                for arquivo in (resultado.get("arquivos_pdf") or [])
+                if str(arquivo).strip()
+            ]
             mensagem = "Publicado com sucesso."
             if sharepoint_path:
                 mensagem = (
                     f"{mensagem} PDF enviado para SharePoint em: {sharepoint_path}"
                 )
+            self._update_publish_status(
+                "completed",
+                "Publicação concluída.",
+                100,
+                active=False,
+            )
             return {
                 "status": "ok",
                 "mensagem": mensagem,
                 "caminho_pdf": caminho_pdf,
                 "sharepoint_path": sharepoint_path,
-                "arquivos_pdf": [caminho_pdf] if caminho_pdf else [],
+                "arquivos_pdf": arquivos_pdf or ([caminho_pdf] if caminho_pdf else []),
             }
         except Exception as e:
+            self._update_publish_status(
+                "error",
+                "Falha na publicação.",
+                100,
+                active=False,
+                error=str(e),
+            )
             return {"status": "erro", "mensagem": f"Erro ao publicar: {str(e)}"}
 
     def deletar_historico(self, registros):
@@ -1497,19 +1764,40 @@ class Api:
 
 
 def iniciar_app():
+    configure_windows_app_id()
+    splash = StartupSplash()
+    splash.step(
+        "Carregando interface...",
+        "Importando motor da janela desktop",
+        0.28,
+    )
+    bootstrap_runtime()
+    splash.step(
+        "Inicializando interface...",
+        "Montando a janela principal",
+        0.68,
+    )
     api = Api()
-    html_path = Path(__file__).parent / "web" / "index.html"
-
-    webview.create_window(
-        "Ordem de Ajuste",
+    html_path = first_existing_path(
+        BASE_DIR / "web" / "index.html",
+        BUNDLED_DIR / "web" / "index.html",
+    )
+    main_window = webview.create_window(
+        WINDOW_TITLE,
         html_path.as_uri(),
         js_api=api,
         width=1400,
         height=900,
     )
-    webview.start()
+    splash.step(
+        "Abrindo dashboard...",
+        "Carregando HTML, estilos e scripts",
+        0.96,
+    )
+    splash.close()
+
+    webview.start(icon=str(ICON_PATH) if ICON_PATH.exists() else None)
 
 
 if __name__ == "__main__":
-    print(Api().testar_conexao())
     iniciar_app()

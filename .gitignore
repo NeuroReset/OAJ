@@ -1,5 +1,6 @@
 __pycache__/
 *.py[cod]
+*.pyc.*
 *.pyo
 *.pyd
 
@@ -14,3 +15,7 @@ db_config.json
 Thumbs.db
 
 app_data/
+build/
+dist/
+release/
+*.tmp*.xlsx

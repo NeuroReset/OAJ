@@ -122,6 +122,13 @@
             font-size: 1.25rem;
         }
 
+        .brand-mark {
+            display: block;
+            height: 2.75rem;
+            width: 2.75rem;
+            object-fit: contain;
+        }
+
         body {
             min-height: max(884px, 100dvh);
             background: linear-gradient(180deg, #f8fafc 0%, var(--color-bg) 100%);
@@ -384,13 +391,7 @@
 <body class="font-body min-h-screen pb-32">
     <header class="fixed top-0 z-50 flex h-[76px] w-full items-center justify-between border-b border-slate-200/80 bg-white/88 px-4 shadow-sm backdrop-blur-md md:px-6">
         <div class="flex items-center gap-4">
-            <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-primary shadow-sm">
-                <span aria-hidden="true" class="icon icon-md">
-                    <svg fill="none" viewBox="0 0 24 24">
-                        <path d="M6 7h12M6 12h12M6 17h7" stroke-linecap="round" stroke-width="2"></path>
-                    </svg>
-                </span>
-            </div>
+            <img alt="Logo" class="brand-mark" src="../assets/images/image.png" />
             <div>
                 <h1 class="font-headline text-lg font-black tracking-tight text-on-surface">Ordem de Ajuste</h1>
                 <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Dashboard interno</p>
@@ -421,7 +422,7 @@
                 <span class="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-on-surface shadow-sm" id="session-matricula-display">-</span>
             </div>
 
-            <button class="btn btn-secondary hidden md:inline-flex" onclick="salvar()" type="button">
+            <button class="btn btn-secondary hidden md:inline-flex" id="header-salvar-btn" onclick="salvar()" type="button">
                 <span aria-hidden="true" class="icon icon-sm">
                     <svg fill="none" viewBox="0 0 24 24">
                         <path d="M5 4h11l3 3v13H5z" stroke-linejoin="round" stroke-width="2"></path>
@@ -430,7 +431,7 @@
                 </span>
                 Salvar
             </button>
-            <button class="btn btn-primary hidden md:inline-flex" onclick="publicar()" type="button">
+            <button class="btn btn-primary hidden md:inline-flex" id="header-publicar-btn" onclick="publicar()" type="button">
                 <span aria-hidden="true" class="icon icon-sm">
                     <svg fill="none" viewBox="0 0 24 24">
                         <path d="M12 4v10" stroke-linecap="round" stroke-width="2"></path>
@@ -1002,7 +1003,7 @@
             </span>
             <span class="font-label text-[10px] font-medium uppercase tracking-wider">Config</span>
         </button>
-        <button class="flex flex-col items-center justify-center px-3 py-1 text-slate-500" onclick="salvar()" type="button">
+        <button class="flex flex-col items-center justify-center px-3 py-1 text-slate-500" id="mobile-salvar-btn" onclick="salvar()" type="button">
             <span aria-hidden="true" class="icon icon-md">
                 <svg fill="none" viewBox="0 0 24 24">
                     <path d="M5 4h11l3 3v13H5z" stroke-linejoin="round" stroke-width="2"></path>
@@ -1029,7 +1030,7 @@
             </div>
         </div>
     </div>
-    <div class="fixed inset-0 z-[90] hidden items-center justify-center bg-slate-950/18 px-4 backdrop-blur-[2px]" id="app-loading-overlay">
+    <div class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/18 px-4 backdrop-blur-[2px]" id="app-loading-overlay">
         <div class="w-full max-w-sm rounded-3xl border border-slate-200 bg-white px-6 py-5 shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
             <div class="text-sm font-black uppercase tracking-[0.16em] text-slate-500">Processando</div>
             <div class="mt-2 text-base font-semibold text-slate-900" id="app-loading-message">Carregando...</div>

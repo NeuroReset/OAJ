@@ -177,6 +177,97 @@ Ao iniciar:
 - a janela desktop é aberta
 - a interface HTML é carregada
 
+## Como Compilar
+
+Para gerar um executável atualizável sem precisar recriar um arquivo único toda vez, o projeto usa `PyInstaller` em modo pasta (`onedir`).
+
+### 1. Instalar o empacotador
+
+```powershell
+pip install pyinstaller
+```
+
+### 2. Gerar o compilado
+
+```powershell
+.\scripts\build.ps1
+```
+
+Saída esperada:
+
+```text
+dist\OAJ\
+```
+
+Executável:
+
+```text
+dist\OAJ\OAJ.exe
+```
+
+### 3. Atualizar sem gerar tudo do zero
+
+Use sempre o formato pasta, não `onefile`.
+
+Fluxo recomendado:
+
+1. alterar o código-fonte
+2. rodar `.\scripts\build.ps1` novamente
+3. copiar a nova versão da pasta `dist\OAJ` sobre a instalação anterior
+4. preservar `db_config.json`, `pdfs\` e `app_data\` se quiser manter configuração e arquivos locais
+
+### 4. Limpar cache do build
+
+```powershell
+.\scripts\build.ps1 -Clean
+```
+
+## Instalação e Atualização
+
+### Instalar na máquina
+
+Depois de gerar o build:
+
+```powershell
+.\scripts\install.ps1
+```
+
+Instalação padrão:
+
+```text
+%LOCALAPPDATA%\Programs\OAJ
+```
+
+O script:
+
+- copia o app compilado para a pasta de instalação
+- cria atalho `OAJ` na área de trabalho
+- preserva `db_config.json`, `pdfs\` e `app_data\` se já existirem
+
+### Atualizar uma instalação existente
+
+Depois de gerar um novo build:
+
+```powershell
+.\scripts\update.ps1
+```
+
+O script substitui a versão instalada sem apagar configuração nem dados locais.
+
+### Gerar pacote para envio
+
+Se quiser mandar a instalação para outra pessoa em um `.zip`:
+
+```powershell
+.\scripts\package_release.ps1
+```
+
+Saída:
+
+```text
+release\OAJ-release.zip
+```
+
 ## Integração Frontend x Backend
 
 O `pywebview` expõe métodos Python ao JavaScript pela API:
