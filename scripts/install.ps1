@@ -21,6 +21,21 @@ function Copy-PreservedContent {
     }
 }
 
+function Copy-IfMissing {
+    param(
+        [string]$SourcePath,
+        [string]$DestinationPath
+    )
+
+    if ((Test-Path $SourcePath) -and -not (Test-Path $DestinationPath)) {
+        $destinationDir = Split-Path -Parent $DestinationPath
+        if ($destinationDir -and -not (Test-Path $destinationDir)) {
+            New-Item -ItemType Directory -Path $destinationDir -Force | Out-Null
+        }
+        Copy-Item -LiteralPath $SourcePath -Destination $DestinationPath -Force
+    }
+}
+
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = Split-Path -Parent $scriptRoot
 $resolvedSource = $SourcePath
@@ -30,6 +45,8 @@ if (-not [System.IO.Path]::IsPathRooted($resolvedSource)) {
 $resolvedSource = [System.IO.Path]::GetFullPath($resolvedSource)
 $resolvedInstall = [System.IO.Path]::GetFullPath($InstallPath)
 $preserveRoot = Join-Path $env:TEMP "OAJ-install-preserve"
+$dataRoot = Join-Path $env:LOCALAPPDATA "OAJ"
+$dataPreserveRoot = Join-Path $env:TEMP "OAJ-install-data-preserve"
 
 if (-not (Test-Path $resolvedSource)) {
     throw "Pasta de origem nao encontrada: $resolvedSource"
@@ -39,6 +56,22 @@ if (Test-Path $preserveRoot) {
     Remove-Item -LiteralPath $preserveRoot -Recurse -Force
 }
 New-Item -ItemType Directory -Path $preserveRoot | Out-Null
+
+if (Test-Path $dataPreserveRoot) {
+    Remove-Item -LiteralPath $dataPreserveRoot -Recurse -Force
+}
+New-Item -ItemType Directory -Path $dataPreserveRoot | Out-Null
+
+if (-not (Test-Path $dataRoot)) {
+    New-Item -ItemType Directory -Path $dataRoot -Force | Out-Null
+}
+
+foreach ($name in @("db_config.json", "pdfs", "app_data")) {
+    $itemPath = Join-Path $dataRoot $name
+    if (Test-Path $itemPath) {
+        Copy-Item -LiteralPath $itemPath -Destination (Join-Path $dataPreserveRoot $name) -Recurse -Force
+    }
+}
 
 if (Test-Path $resolvedInstall) {
     foreach ($name in @("db_config.json", "pdfs", "app_data")) {
@@ -57,21 +90,22 @@ Get-ChildItem -LiteralPath $resolvedSource -Force | ForEach-Object {
 }
 
 foreach ($name in @("pdfs", "app_data")) {
-    $targetDir = Join-Path $resolvedInstall $name
+    $targetDir = Join-Path $dataRoot $name
     if (-not (Test-Path $targetDir)) {
-        New-Item -ItemType Directory -Path $targetDir | Out-Null
+        New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
     }
 }
 
-$distConfig = Join-Path $resolvedInstall "db_config.json"
+$distConfig = Join-Path $dataRoot "db_config.json"
 $exampleConfig = Join-Path $resolvedInstall "db_config.example.json"
 
-if ((Test-Path (Join-Path $preserveRoot "db_config.json")) -and -not (Test-Path $distConfig)) {
-    Copy-Item -LiteralPath (Join-Path $preserveRoot "db_config.json") -Destination $distConfig
-}
+Copy-IfMissing -SourcePath (Join-Path $dataPreserveRoot "db_config.json") -DestinationPath $distConfig
+Copy-IfMissing -SourcePath (Join-Path $preserveRoot "db_config.json") -DestinationPath $distConfig
+Copy-IfMissing -SourcePath (Join-Path $resolvedSource "db_config.json") -DestinationPath $distConfig
 
 foreach ($name in @("pdfs", "app_data")) {
-    Copy-PreservedContent -PreservePath (Join-Path $preserveRoot $name) -TargetPath (Join-Path $resolvedInstall $name)
+    Copy-PreservedContent -PreservePath (Join-Path $dataPreserveRoot $name) -TargetPath (Join-Path $dataRoot $name)
+    Copy-PreservedContent -PreservePath (Join-Path $preserveRoot $name) -TargetPath (Join-Path $dataRoot $name)
 }
 
 if (-not (Test-Path $distConfig) -and (Test-Path $exampleConfig)) {

@@ -501,9 +501,9 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
-                <section class="flex flex-col bg-surface-container-low">
-                    <div class="app-card overflow-hidden">
+            <div class="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2">
+                <section class="flex h-full flex-col bg-surface-container-low">
+                    <div class="app-card flex h-full flex-col overflow-hidden">
                     <div class="border-b border-outline-variant bg-slate-50 px-4 py-3 text-on-surface">
                         <h2 class="text-center font-headline text-[10px] font-bold uppercase tracking-widest italic">Ajuste Proteção de Fase</h2>
                     </div>
@@ -533,8 +533,8 @@
                     </div>
                 </section>
 
-                <section class="flex flex-col bg-surface-container-low">
-                    <div class="app-card overflow-hidden">
+                <section class="flex h-full flex-col bg-surface-container-low">
+                    <div class="app-card flex h-full flex-col overflow-hidden">
                     <div class="border-b border-outline-variant bg-slate-50 px-4 py-3 text-on-surface">
                         <h2 class="text-center font-headline text-[10px] font-bold uppercase tracking-widest italic">Ajuste Proteção de Neutro</h2>
                     </div>
@@ -564,8 +564,8 @@
                     </div>
                 </section>
 
-                <section class="flex flex-col bg-surface-container-low" data-normal-only>
-                    <div class="app-card overflow-hidden">
+                <section class="flex h-full flex-col bg-surface-container-low" data-normal-only>
+                    <div class="app-card flex h-full flex-col overflow-hidden">
                     <div class="border-b border-outline-variant bg-slate-50 px-4 py-3 text-on-surface">
                         <h2 class="text-center font-headline text-[10px] font-bold uppercase tracking-widest italic">Ajuste Sensitive Earth Fault (SEF)</h2>
                     </div>
@@ -579,24 +579,26 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td class="bg-white text-center font-bold" rowspan="8">1</td>
+                                <td class="bg-white text-center font-bold" rowspan="10">1</td>
                                 <td class="bg-white px-3 py-1.5 text-on-surface-variant">Trip:</td>
                                 <td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="" /></td>
                             </tr>
                             <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Temporização (s):</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="" /></td></tr>
                             <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Operações:</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="" /></td></tr>
                             <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">Interv. Relig. (s):</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary"><input class="w-full border-none bg-transparent p-0 text-right focus:ring-0" type="text" value="" /></td></tr>
-                            <tr><td class="bg-white h-[25px]"></td><td class="bg-white"></td></tr>
-                            <tr><td class="bg-white h-[25px]"></td><td class="bg-white"></td></tr>
-                            <tr><td class="bg-white h-[25px]"></td><td class="bg-white"></td></tr>
-                            <tr><td class="bg-white h-[25px]"></td><td class="bg-white"></td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">&nbsp;</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary">&nbsp;</td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">&nbsp;</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary">&nbsp;</td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">&nbsp;</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary">&nbsp;</td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">&nbsp;</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary">&nbsp;</td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">&nbsp;</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary">&nbsp;</td></tr>
+                            <tr><td class="bg-white px-3 py-1.5 text-on-surface-variant">&nbsp;</td><td class="bg-white px-3 py-1.5 text-right font-bold text-primary">&nbsp;</td></tr>
                         </tbody>
                     </table>
                     </div>
                 </section>
 
-                <section class="flex flex-col bg-surface-container-low" data-normal-only>
-                    <div class="app-card overflow-hidden">
+                <section class="flex h-full flex-col bg-surface-container-low" data-normal-only>
+                    <div class="app-card flex h-full flex-col overflow-hidden">
                     <div class="border-b border-outline-variant bg-slate-50 px-4 py-3 text-on-surface">
                         <h2 class="text-center font-headline text-[10px] font-bold uppercase tracking-widest italic">Ajustes Gerais</h2>
                     </div>
@@ -633,7 +635,12 @@
                 <h2 class="mb-4 font-headline text-xs font-bold uppercase tracking-widest text-primary">Observações (Obs.)</h2>
                 <div class="space-y-3">
                     <div class="flex gap-3">
-                        <p class="text-sm leading-relaxed text-on-surface"><strong>Single Shot:</strong> Ativo conforme os ajustes parametrizados na operação 01.</p>
+                        <p class="text-sm leading-relaxed text-on-surface">
+                            <strong>Single Shot:</strong>
+                            Ativo conforme os ajustes parametrizados na operação
+                            <input class="mx-1 inline-block w-16 rounded-md border border-slate-300 bg-white px-2 py-1 text-center text-sm font-semibold text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" id="single-shot-operacao" type="text" value="01" />
+                            .
+                        </p>
                     </div>
                     <div class="flex gap-3">
                         <p class="text-sm leading-relaxed text-on-surface"><strong>Linha Viva:</strong> Parametrizar para fase e neutro, curva 101, multiplicador de tempo em 0,01.</p>
@@ -664,7 +671,14 @@
 
                 <div class="mb-4 flex items-center justify-between gap-3">
                     <div class="text-sm font-semibold text-on-surface-variant" id="drafts-resumo">0 rascunhos</div>
-                    <button class="btn btn-secondary" onclick="carregarDraftsSalvos()" type="button">Atualizar</button>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <label class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600">
+                            <input class="rounded border-outline-variant" id="drafts-selecionar-todos" type="checkbox" onchange="alternarSelecaoTodosDrafts(this.checked)" />
+                            Selecionar todos
+                        </label>
+                        <button class="btn btn-primary" id="drafts-publicar-selecionados" onclick="publicarDraftsSelecionados()" type="button" disabled>Publicar selecionados</button>
+                        <button class="btn btn-secondary" onclick="carregarDraftsSalvos()" type="button">Atualizar</button>
+                    </div>
                 </div>
 
                 <div class="grid gap-4" id="drafts-lista"></div>
@@ -751,8 +765,9 @@
                         <label class="flex items-center gap-2 text-sm text-on-surface-variant" for="historico-tamanho-pagina">
                             <span>Por página</span>
                             <select class="field-input filtro-select h-10 px-3 pr-9" id="historico-tamanho-pagina">
+                                <option value="0" selected>0</option>
                                 <option value="50">50</option>
-                                <option value="100" selected>100</option>
+                                <option value="100">100</option>
                                 <option value="200">200</option>
                             </select>
                         </label>

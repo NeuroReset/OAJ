@@ -66,7 +66,7 @@ let historicoRequestToken = 0;
 let historicoPaginaAtual = 1;
 let historicoTotalPaginas = 0;
 let historicoTotalRegistros = 0;
-let historicoTamanhoPagina = 50;
+let historicoTamanhoPagina = 0;
 const HISTORICO_FILTROS_STORAGE_KEY = "oaj.historico.filtros";
 const SESSION_MATRICULA_STORAGE_KEY = "oaj.session.matricula";
 const CONSULTA_ESTADO_STORAGE_KEY = "oaj.consulta.estado";
@@ -95,20 +95,21 @@ let consultaInicializada = false;
 let abaAtiva = "inicio";
 let modoFormulario = "normal";
 let draftsSalvos = [];
+let draftsSelecionados = new Set();
+let draftStatusMap = {};
+let publicacaoLoteAtiva = false;
 let toastTimeoutId = 0;
 let confirmResolverAtual = null;
 let loadingCounter = 0;
 let startupLoadingActive = true;
 let publishProgressPollId = 0;
+const SINGLE_SHOT_OPERACAO_PADRAO = "01";
 let appSettings = {
     sharepoint_root: "",
     sharepoint_root_default: "",
     sharepoint_root_effective: "",
 };
-const OBSERVACOES_FIXAS = [
-    "Single Shot: Ativo conforme os ajustes parametrizados na operação 01.",
-    "Linha Viva: Parametrizar para fase e neutro, curva 101, multiplicador de tempo em 0,01.",
-];
+const LINHA_VIVA_OBSERVACAO_FIXA = "Linha Viva: Parametrizar para fase e neutro, curva 101, multiplicador de tempo em 0,01.";
 const CAMPOS_AJUSTES = [
     "Pickup_50P",
     "Tempo_Minimo_50P",
@@ -154,8 +155,23 @@ function normalizarModoFormulario(valor) {
         : "normal";
 }
 
+function obterCampoSingleShotOperacao() {
+    return document.getElementById("single-shot-operacao");
+}
+
+function obterSingleShotOperacaoAtual() {
+    const valor = obterCampoSingleShotOperacao()?.value?.trim() || "";
+    return valor || SINGLE_SHOT_OPERACAO_PADRAO;
+}
+
+function montarObservacaoSingleShot(operacao = obterSingleShotOperacaoAtual()) {
+    return `Single Shot: Ativo conforme os ajustes parametrizados na operação ${operacao}.`;
+}
+
 function obterObservacoesFixasPorModo() {
-    return modoFormulario === "seccionalizador" ? [] : OBSERVACOES_FIXAS;
+    return modoFormulario === "seccionalizador"
+        ? []
+        : [montarObservacaoSingleShot(), LINHA_VIVA_OBSERVACAO_FIXA];
 }
 
 function obterPlaceholderObservacoesPorModo() {
@@ -692,6 +708,10 @@ function atualizarFiltroHistorico(chave, valor) {
     persistirFiltrosHistorico();
 }
 
+function historicoTemFiltrosAtivos() {
+    return Object.values(historicoFiltros).some((valor) => String(valor || "").trim() !== "");
+}
+
 function obterFiltrosHistorico() {
     return {
         ...historicoFiltros,
@@ -718,6 +738,8 @@ function atualizarControlesPaginacaoHistorico() {
     if (resumo) {
         if (!historicoTotalRegistros) {
             resumo.textContent = "0 registros";
+        } else if (historicoTamanhoPagina <= 0) {
+            resumo.textContent = `${historicoTotalRegistros} registros`;
         } else {
             const inicio = (historicoPaginaAtual - 1) * historicoTamanhoPagina + 1;
             const fim = Math.min(historicoPaginaAtual * historicoTamanhoPagina, historicoTotalRegistros);
@@ -872,6 +894,69 @@ function obterStatusLockDraft(draft) {
     };
 }
 
+function obterStatusPublicacaoDraft(draft) {
+    const status = draftStatusMap[draft?.equipment_id] || "";
+    if (status === "publicando") {
+        return { texto: "Publicando...", classe: "bg-blue-100 text-blue-700" };
+    }
+    if (status === "ok") {
+        return { texto: "Publicado", classe: "bg-emerald-100 text-emerald-700" };
+    }
+    if (status === "erro") {
+        return { texto: "Falhou", classe: "bg-red-100 text-red-700" };
+    }
+    return { texto: "Pendente", classe: "bg-slate-100 text-slate-600" };
+}
+
+function atualizarResumoSelecaoDrafts() {
+    const resumo = document.getElementById("drafts-resumo");
+    const botao = document.getElementById("drafts-publicar-selecionados");
+    const marcarTodos = document.getElementById("drafts-selecionar-todos");
+    const total = draftsSalvos.length;
+    const selecionados = draftsSelecionados.size;
+
+    if (resumo) {
+        resumo.textContent = selecionados
+            ? `${selecionados} de ${total} selecionado${selecionados === 1 ? "" : "s"}`
+            : `${total} rascunho${total === 1 ? "" : "s"}`;
+    }
+
+    if (botao) {
+        botao.disabled = !selecionados || publicacaoLoteAtiva;
+        botao.textContent = publicacaoLoteAtiva
+            ? "Publicando lote..."
+            : `Publicar selecionados${selecionados ? ` (${selecionados})` : ""}`;
+    }
+
+    if (marcarTodos) {
+        marcarTodos.checked = total > 0 && selecionados === total;
+        marcarTodos.indeterminate = selecionados > 0 && selecionados < total;
+        marcarTodos.disabled = !total || publicacaoLoteAtiva;
+    }
+}
+
+function alternarSelecaoDraft(equipmentId, selecionado) {
+    if (!equipmentId || publicacaoLoteAtiva) {
+        return;
+    }
+    if (selecionado) {
+        draftsSelecionados.add(equipmentId);
+    } else {
+        draftsSelecionados.delete(equipmentId);
+    }
+    atualizarResumoSelecaoDrafts();
+}
+
+function alternarSelecaoTodosDrafts(selecionar) {
+    if (publicacaoLoteAtiva) {
+        return;
+    }
+    draftsSelecionados = selecionar
+        ? new Set(draftsSalvos.map((draft) => draft.equipment_id).filter(Boolean))
+        : new Set();
+    renderizarDraftsSalvos();
+}
+
 function renderizarDraftsSalvos() {
     const lista = document.getElementById("drafts-lista");
     const vazio = document.getElementById("drafts-vazio");
@@ -881,24 +966,29 @@ function renderizarDraftsSalvos() {
         return;
     }
 
-    resumo.textContent = `${draftsSalvos.length} rascunho${draftsSalvos.length === 1 ? "" : "s"}`;
-
     if (!draftsSalvos.length) {
         lista.innerHTML = "";
         vazio.classList.remove("hidden");
+        atualizarResumoSelecaoDrafts();
         return;
     }
 
     vazio.classList.add("hidden");
     lista.innerHTML = draftsSalvos.map((draft) => {
         const statusLock = obterStatusLockDraft(draft);
+        const statusPublicacao = obterStatusPublicacaoDraft(draft);
+        const selecionado = draftsSelecionados.has(draft.equipment_id);
         return `
             <article class="app-card p-5">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div class="space-y-3">
                         <div class="flex flex-wrap items-center gap-2">
+                            <label class="inline-flex items-center">
+                                <input class="rounded border-outline-variant" type="checkbox" ${selecionado ? "checked" : ""} ${publicacaoLoteAtiva ? "disabled" : ""} onchange="alternarSelecaoDraft('${draft.equipment_id}', this.checked)" />
+                            </label>
                             <h3 class="text-xl font-black text-on-surface">${draft.numero || draft.equipment_id || "-"}</h3>
                             <span class="rounded-full px-3 py-1 text-xs font-bold ${statusLock.classe}">${statusLock.texto}</span>
+                            <span class="rounded-full px-3 py-1 text-xs font-bold ${statusPublicacao.classe}">${statusPublicacao.texto}</span>
                         </div>
                         <div class="grid gap-2 text-sm text-on-surface-variant sm:grid-cols-2 xl:grid-cols-4">
                             <div><span class="font-bold text-on-surface">Circuito:</span> ${draft.circuito || "-"}</div>
@@ -908,14 +998,15 @@ function renderizarDraftsSalvos() {
                         </div>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                        <button class="btn btn-secondary" onclick="abrirDraftSalvo('${draft.equipment_id}')" type="button">Abrir</button>
-                        <button class="btn btn-primary" onclick="publicarDraftSalvo('${draft.equipment_id}')" type="button">Publicar</button>
-                        <button class="btn btn-danger" onclick="excluirDraftSalvo('${draft.equipment_id}')" type="button">Excluir</button>
+                        <button class="btn btn-secondary" onclick="abrirDraftSalvo('${draft.equipment_id}')" type="button" ${publicacaoLoteAtiva ? "disabled" : ""}>Abrir</button>
+                        <button class="btn btn-primary" onclick="publicarDraftSalvo('${draft.equipment_id}')" type="button" ${publicacaoLoteAtiva ? "disabled" : ""}>Publicar</button>
+                        <button class="btn btn-danger" onclick="excluirDraftSalvo('${draft.equipment_id}')" type="button" ${publicacaoLoteAtiva ? "disabled" : ""}>Excluir</button>
                     </div>
                 </div>
             </article>
         `;
     }).join("");
+    atualizarResumoSelecaoDrafts();
 }
 
 async function carregarDraftsSalvos() {
@@ -941,9 +1032,15 @@ async function carregarDraftsSalvos() {
 
         atualizarMatriculaAtiva(resposta?.matricula || obterMatriculaPersistida());
         draftsSalvos = Array.isArray(resposta?.drafts) ? resposta.drafts : [];
+        draftsSelecionados = new Set(
+            Array.from(draftsSelecionados).filter((equipmentId) =>
+                draftsSalvos.some((draft) => draft.equipment_id === equipmentId),
+            ),
+        );
         renderizarDraftsSalvos();
     } catch (erro) {
         draftsSalvos = [];
+        draftsSelecionados = new Set();
         if (lista) {
             lista.innerHTML = `<div class="app-card border-red-200 bg-red-50 px-6 py-8 text-center text-sm text-red-700">${erro?.message || erro}</div>`;
         }
@@ -991,20 +1088,7 @@ function obterAbreviacoesConsultaDisponiveis(regional) {
     const circuitosCatalogo = (circuitoSelecionado.circuitos_finais || [])
         .filter((valor) => String(valor || "").trim());
     if (circuitosCatalogo.length) {
-        const circuitosBanco = consultaCircuitosDisponiveisBanco || [];
-        const normalizadosBanco = new Set(
-            circuitosBanco.map((valor) => normalizarTextoConsulta(valor))
-        );
-
-        const circuitosDisponiveis = !normalizadosBanco.size
-            ? circuitosCatalogo
-            : circuitosCatalogo.filter((valor) =>
-                normalizadosBanco.has(normalizarTextoConsulta(valor))
-            );
-
-        if (circuitosDisponiveis.length) {
-            return circuitosDisponiveis.map((valor) => ({ id: valor, nome: valor }));
-        }
+        return circuitosCatalogo.map((valor) => ({ id: valor, nome: valor }));
     }
 
     const prefixo = normalizarTextoConsulta(circuitoSelecionado.abreviacao);
@@ -1615,11 +1699,21 @@ async function carregarHistorico() {
     historicoRenderToken += 1;
     historicoSelecionados = new Set();
     historicoRegistros = [];
+    historicoTotalRegistros = 0;
+    historicoTotalPaginas = 0;
     atualizarEstadoSelecaoHistorico();
+    atualizarControlesPaginacaoHistorico();
+
+    if (historicoTamanhoPagina <= 0 && !historicoTemFiltrosAtivos()) {
+        if (body) {
+            body.innerHTML = `<tr><td class="px-4 py-6 text-center text-on-surface-variant" colspan="${HEADER_ORDEM_AJUSTE.length + 1}">Defina a quantidade por p&aacute;gina ou aplique um filtro para exibir o hist&oacute;rico.</td></tr>`;
+        }
+        return;
+    }
+
     if (body && !body.querySelector("tr[data-indice]")) {
         body.innerHTML = `<tr><td class="px-4 py-6 text-center text-on-surface-variant" colspan="${HEADER_ORDEM_AJUSTE.length + 1}">Carregando...</td></tr>`;
     }
-    atualizarControlesPaginacaoHistorico();
 
     try {
         const resposta = await callApi("get_historico", obterFiltrosHistorico());
@@ -1630,7 +1724,9 @@ async function carregarHistorico() {
         const registros = resposta?.registros || [];
         const mensagem = resposta?.mensagem || "";
         historicoPaginaAtual = Number(resposta?.pagina || 1);
-        historicoTamanhoPagina = Number(resposta?.tamanho_pagina || historicoTamanhoPagina || 50);
+        historicoTamanhoPagina = Number(
+            resposta?.tamanho_pagina ?? historicoTamanhoPagina ?? 0,
+        );
         historicoTotalRegistros = Number(resposta?.total_registros || 0);
         historicoTotalPaginas = Number(resposta?.total_paginas || 0);
 
@@ -1845,9 +1941,20 @@ function extrairObservacoesAdicionais(valor) {
         .split("|")
         .map((item) => item.trim())
         .filter(Boolean)
-        .filter((item) => !obterObservacoesFixasPorModo().includes(item));
+        .filter((item) => item !== LINHA_VIVA_OBSERVACAO_FIXA)
+        .filter((item) => !item.startsWith("Single Shot:"));
 
     return partes.join(" | ");
+}
+
+function extrairOperacaoSingleShot(valor) {
+    const texto = String(valor || "").trim();
+    if (!texto) {
+        return "";
+    }
+
+    const match = texto.match(/Single Shot:\s*Ativo conforme os ajustes parametrizados na opera(?:ç|c)[aã]o\s+([^.|]+)\./i);
+    return match?.[1]?.trim() || "";
 }
 
 function sincronizarCamposParaClone(origem, clone) {
@@ -2134,6 +2241,9 @@ function preencherFormularioComDraft(dados) {
     document.getElementById("header-tensao").value = String(payload.TensaoPdf || payload.Tensao || "");
     document.getElementById("header-tensao-display").textContent = String(payload.TensaoPdf || payload.Tensao || "13.800V");
     document.getElementById("header-data-input").value = dataBrParaIso(payload.Data_Emissao || "");
+    obterCampoSingleShotOperacao().value = String(
+        payload.SingleShotOperacao || extrairOperacaoSingleShot(payload.Observacoes || "") || SINGLE_SHOT_OPERACAO_PADRAO
+    );
     document.getElementById("observacoes").value = extrairObservacoesAdicionais(payload.Observacoes || "");
 
     const ajustes = Array.from(document.querySelectorAll(".technical-table input"));
@@ -2180,6 +2290,54 @@ async function publicarDraftSalvo(equipmentId) {
     } catch (erro) {
         mostrarToast(erro?.message || "Falha ao publicar rascunho.", "erro");
     }
+}
+
+async function publicarDraftsSelecionados() {
+    const equipmentIds = Array.from(draftsSelecionados).filter(Boolean);
+    if (!equipmentIds.length || publicacaoLoteAtiva) {
+        return;
+    }
+
+    publicacaoLoteAtiva = true;
+    let publicados = 0;
+    let falhas = 0;
+    renderizarDraftsSalvos();
+
+    try {
+        await garantirSessao();
+
+        for (const equipmentId of equipmentIds) {
+            draftStatusMap[equipmentId] = "publicando";
+            renderizarDraftsSalvos();
+
+            try {
+                const resposta = await executarPublicacaoComProgresso({ Numero: equipmentId });
+                if (resposta?.status === "erro") {
+                    throw new Error(resposta?.mensagem || "Falha ao publicar rascunho.");
+                }
+                draftStatusMap[equipmentId] = "ok";
+                draftsSelecionados.delete(equipmentId);
+                publicados += 1;
+            } catch (erro) {
+                console.error(erro);
+                draftStatusMap[equipmentId] = "erro";
+                falhas += 1;
+            }
+
+            renderizarDraftsSalvos();
+        }
+    } finally {
+        publicacaoLoteAtiva = false;
+        await carregarDraftsSalvos();
+        renderizarDraftsSalvos();
+    }
+
+    if (falhas) {
+        mostrarToast(`${publicados} publicado(s), ${falhas} com falha.`, "erro");
+        return;
+    }
+
+    mostrarToast(`${publicados} rascunho(s) publicado(s) com sucesso.`);
 }
 
 async function excluirDraftSalvo(equipmentId) {
@@ -2260,6 +2418,7 @@ function montarRegistroOrdenado() {
         Inrush: ajustes[28]?.value?.trim() || "",
         Sequence_Control: ajustes[29]?.value?.trim() || "",
         Observacoes: extrairObservacoes(),
+        SingleShotOperacao: obterSingleShotOperacaoAtual(),
         NumeroAjuste: "",
         RegionalDetectada: regionalDetectada?.regional || "",
         TensaoPdf: tensao,
@@ -2280,6 +2439,7 @@ function montarRegistroOrdenado() {
         ModoFormulario: valores.ModoFormulario,
         RegionalDetectada: valores.RegionalDetectada,
         TensaoPdf: valores.TensaoPdf,
+        SingleShotOperacao: valores.SingleShotOperacao,
     });
 }
 
@@ -2311,7 +2471,6 @@ async function publicar() {
             return;
         }
 
-        dados.PdfHtml = montarHtmlPdfFront();
         await garantirSessao();
         const res = await executarPublicacaoComProgresso(dados);
         if (res?.status === "erro") {
@@ -2416,7 +2575,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     document.getElementById("historico-tamanho-pagina")?.addEventListener("change", (evento) => {
-        historicoTamanhoPagina = Number(evento.target.value || 50);
+        historicoTamanhoPagina = Number(evento.target.value || 0);
         historicoPaginaAtual = 1;
         carregarHistorico();
     });

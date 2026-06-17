@@ -909,13 +909,16 @@ class Api:
             pagina = 1
 
         try:
-            tamanho_pagina = int(filtros.get("tamanho_pagina", 50))
+            tamanho_pagina = int(filtros.get("tamanho_pagina", 0))
         except (TypeError, ValueError, AttributeError):
-            tamanho_pagina = 50
+            tamanho_pagina = 0
 
         pagina = max(1, pagina)
-        tamanho_pagina = max(1, min(tamanho_pagina, 200))
+        tamanho_pagina = max(0, min(tamanho_pagina, 200))
         return pagina, tamanho_pagina
+
+    def _filtros_historico_ativos(self, filtros_normalizados):
+        return any(str(valor or "").strip() for valor in filtros_normalizados.values())
 
     def _order_by_registros_recentes(self):
         return """
@@ -1290,10 +1293,23 @@ class Api:
     def get_historico(self, filtros=None):
         try:
             filtros = filtros or {}
-            _, where_sql, parametros = self._montar_where_filtros_consulta(
+            filtros_normalizados, where_sql, parametros = self._montar_where_filtros_consulta(
                 filtros)
             pagina, tamanho_pagina = self._normalizar_paginacao_historico(
                 filtros)
+            filtros_ativos = self._filtros_historico_ativos(filtros_normalizados)
+
+            if tamanho_pagina == 0 and not filtros_ativos:
+                return {
+                    "colunas": HEADER_ORDEM_AJUSTE,
+                    "registros": [],
+                    "pagina": 0,
+                    "tamanho_pagina": 0,
+                    "total_registros": 0,
+                    "total_paginas": 0,
+                    "mensagem": "Defina a quantidade por página ou aplique um filtro para exibir o histórico.",
+                }
+
             sql_total = f"""
             SELECT COUNT(*) AS total
             FROM {TABELA_HISTORICO}
@@ -1305,33 +1321,43 @@ class Api:
                     conn.execute(text(sql_total), parametros).scalar() or 0
                 )
 
-                total_paginas = (
-                    max(1, (total_registros + tamanho_pagina - 1) // tamanho_pagina)
-                    if total_registros
-                    else 0
-                )
-
-                if total_paginas and pagina > total_paginas:
-                    pagina = total_paginas
-
-                offset = (pagina - 1) * tamanho_pagina
-                parametros_consulta = {
-                    **parametros,
-                    "offset": offset,
-                    "tamanho_pagina": tamanho_pagina,
-                }
                 order_by_sql = self._order_by_registros_recentes()
 
-                sql = f"""
-                SELECT *
-                FROM {TABELA_HISTORICO}
-                {where_sql}
-                {order_by_sql}
-                OFFSET :offset ROWS
-                FETCH NEXT :tamanho_pagina ROWS ONLY
-                """
+                if tamanho_pagina == 0:
+                    total_paginas = 1 if total_registros else 0
+                    pagina = 1 if total_registros else 0
+                    sql = f"""
+                    SELECT *
+                    FROM {TABELA_HISTORICO}
+                    {where_sql}
+                    {order_by_sql}
+                    """
+                    resultado = conn.execute(text(sql), parametros)
+                else:
+                    total_paginas = (
+                        max(1, (total_registros + tamanho_pagina - 1) // tamanho_pagina)
+                        if total_registros
+                        else 0
+                    )
 
-                resultado = conn.execute(text(sql), parametros_consulta)
+                    if total_paginas and pagina > total_paginas:
+                        pagina = total_paginas
+
+                    offset = (pagina - 1) * tamanho_pagina
+                    parametros_consulta = {
+                        **parametros,
+                        "offset": offset,
+                        "tamanho_pagina": tamanho_pagina,
+                    }
+                    sql = f"""
+                    SELECT *
+                    FROM {TABELA_HISTORICO}
+                    {where_sql}
+                    {order_by_sql}
+                    OFFSET :offset ROWS
+                    FETCH NEXT :tamanho_pagina ROWS ONLY
+                    """
+                    resultado = conn.execute(text(sql), parametros_consulta)
                 colunas, registros = self._serializar_linhas_resultado(
                     resultado)
 
@@ -1350,7 +1376,7 @@ class Api:
                 "colunas": [],
                 "registros": [],
                 "pagina": 1,
-                "tamanho_pagina": 50,
+                "tamanho_pagina": 0,
                 "total_registros": 0,
                 "total_paginas": 0,
                 "mensagem": f"Erro ao carregar: {str(e)}",

@@ -2,14 +2,16 @@ import json
 from pathlib import Path
 
 from sqlalchemy import URL, create_engine
-from app_paths import app_root, bundled_root, first_existing_path
+from app_paths import app_root, bundled_root, first_existing_path, user_data_path
 
 BASE_DIR = app_root()
+USER_CONFIG_DIR = user_data_path()
 _ENGINE = None
 
 
 def get_config_path():
     candidates = [
+        USER_CONFIG_DIR / "db_config.json",
         BASE_DIR / "db_config.json",
         Path.cwd() / "db_config.json",
         bundled_root() / "db_config.json",
@@ -19,6 +21,7 @@ def get_config_path():
 
 def _searched_config_paths():
     return [
+        USER_CONFIG_DIR / "db_config.json",
         BASE_DIR / "db_config.json",
         Path.cwd() / "db_config.json",
         bundled_root() / "db_config.json",

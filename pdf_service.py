@@ -17,7 +17,7 @@ except ImportError:
     pythoncom = None
     DispatchEx = None
 
-from app_paths import resource_path
+from app_paths import resource_path, user_data_path
 from db import load_config
 from draft_manager import load_settings
 
@@ -174,7 +174,7 @@ class PdfService:
         config = load_config()
         settings = load_settings()
         pdf_root = Path(
-            str(config.get("pdf_root", "")).strip() or (self.base_dir / "pdfs")
+            str(config.get("pdf_root", "")).strip() or user_data_path("pdfs")
         )
         sharepoint_root = str(settings.get("sharepoint_root", "")).strip() or str(
             config.get("sharepoint_root", "")
@@ -272,6 +272,11 @@ class PdfService:
         observacoes = self._valor_texto(dados, "Observacoes", "")
         engenheiro = self._valor_texto(dados, "Engenheiro", "")
         data_emissao = self._valor_texto(dados, "Data_Emissao", "")
+        single_shot_operacao = (
+            self._valor_texto(dados, "SingleShotOperacao", "")
+            or self._extrair_single_shot_operacao(observacoes)
+            or "01"
+        )
 
         if self._obter_modo_formulario(dados) == "seccionalizador":
             linhas = [
@@ -283,7 +288,7 @@ class PdfService:
             return "\n".join(linhas).strip()
 
         linhas = [
-            "Single Shot: Ativo conforme os ajustes parametrizados na operacao 01.",
+            f"Single Shot: Ativo conforme os ajustes parametrizados na operacao {single_shot_operacao}.",
             "Linha Viva: Parametrizar para fase e neutro, curva 101, multiplicador de tempo em 0,01.",
             "",
             observacoes or "",
@@ -292,6 +297,20 @@ class PdfService:
             f"Data: {data_emissao}",
         ]
         return "\n".join(linhas).strip()
+
+    def _extrair_single_shot_operacao(self, observacoes):
+        texto = str(observacoes or "").strip()
+        if not texto:
+            return ""
+
+        import re
+
+        match = re.search(
+            r"Single Shot:\s*Ativo conforme os ajustes parametrizados na operacao\s+([^.\n|]+)\.",
+            texto,
+            flags=re.IGNORECASE,
+        )
+        return str(match.group(1)).strip() if match else ""
 
     def gerar_pdf_excel(self, dados):
         pdf_root, sharepoint_root = self._obter_roots_pdf()
@@ -595,7 +614,7 @@ class PdfService:
         )
         navegadores = self._listar_navegadores_pdf()
         destinos = self._obter_destinos_pdf(dados)
-        base_temporaria = self.base_dir / "pdfs" / ".tmp"
+        base_temporaria = user_data_path("pdfs", ".tmp")
         base_temporaria.mkdir(parents=True, exist_ok=True)
         pasta_temporaria_path = (
             base_temporaria / datetime.now().strftime("%Y%m%d%H%M%S%f")

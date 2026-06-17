@@ -4,22 +4,18 @@ import time
 
 from sqlalchemy import text
 
-from app_paths import app_root
+from app_paths import app_root, user_data_path, user_data_root
 from db import get_conn
 
 BASE_DIR = str(app_root())
-APP_DATA_DIR = os.path.join(BASE_DIR, "app_data")
+APP_DATA_DIR = str(user_data_path("app_data"))
 LEGACY_USERS_DIR = os.path.join(APP_DATA_DIR, "users")
 LEGACY_SESSION_FILE = os.path.join(LEGACY_USERS_DIR, "session.json")
 DRAFT_TABLE = "dbo.oaj_drafts"
 
 
 def _session_root_dir():
-    local_app_data = str(os.environ.get("LOCALAPPDATA", "")).strip()
-    roaming_app_data = str(os.environ.get("APPDATA", "")).strip()
-    home_dir = os.path.expanduser("~")
-    base_dir = local_app_data or roaming_app_data or os.path.join(home_dir, ".oaj")
-    return os.path.join(base_dir, "OAJ")
+    return str(user_data_root())
 
 
 SESSION_DIR = _session_root_dir()
